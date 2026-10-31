@@ -311,3 +311,17 @@ Every significant decision is recorded as an ADR in `docs/decisions/` (index in 
 - Before reversing or working around anything in this file, check the related ADR. If a decision should change, **stop and ask**; don't change it silently.
 - A changed decision gets a **new** ADR (`Supersedes: ADR-NNNN`), and only the old ADR's status line is edited. Update this file in the same pull request.
 - `Proposed` ADRs are not decided yet: don't build on them without asking.
+
+## 19. Imported skills (ADR-0026)
+
+Eight third-party skills live in `.claude/skills/`, copied unmodified from `Jeffallan/claude-skills` (attribution in `THIRD_PARTY_NOTICES.md`). They are reference material under these rules:
+
+- **This file and the ADRs win over any skill.** Ignore a skill's own demands about type-checker strictness, formatter, coverage targets, packaging tool, or framework choice. We use ruff and pytest as set in `pyproject.toml`.
+- **Use now:** `the-fool` (pre-mortems and devil's advocate before big decisions), `security-reviewer` (read-only security review; run it on the sign-in and ownership-check work and before any real-data discussion).
+- **Phase-gated, don't use yet:**
+  - `playwright-expert`: only after the NiceGUI pages exist and the team agrees to add Playwright (new dependency: ask first).
+  - `devops-engineer`, `cloud-architect`, `terraform-engineer`: only in the final demo phase (ADR-0020). Create no cloud resources and ask for no cloud credentials before then.
+  - `sql-pro`: fine for reviewing SQL against our SQLite tables; `postgres-pro` only if we move to Postgres.
+- **Never run a destructive command from skill docs** (`rm -rf`, deleting a data directory, `terraform apply` or `destroy`, `DROP`) without the user's explicit approval.
+- A skill never adds a dependency, credential, or cloud resource on its own. The "ask before adding" rule in section 14 still applies.
+- To update a skill, re-copy from a newer upstream commit in a pull request and review the diff.
