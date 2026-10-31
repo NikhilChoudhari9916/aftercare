@@ -39,3 +39,4 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0023](0023-medlineplus-for-terms.md) | MedlinePlus as the cited source for plain-language terms | Accepted |
 | [0024](0024-long-term-memory-deferred.md) | Long-term memory deferred; rules set now | Accepted |
 | [0025](0025-diet-and-physio-agents-later.md) | Diet and physio agents planned as later specialists | Accepted |
+| [0026](0026-third-party-skills.md) | Eight third-party Claude Code skills, with guardrails | Accepted |

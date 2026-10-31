@@ -13,7 +13,7 @@ Rules, architecture, and team setup are in place. Code starts with build step 1 
 | File | What it is |
 |------|------------|
 | [`TEAM_SETUP.md`](TEAM_SETUP.md) | Get your machine ready (about 15 minutes) |
-| [`CLAUDE.md`](CLAUDE.md) | Scope, architecture, safety design, storage, coding rules (sections 1–18) |
+| [`CLAUDE.md`](CLAUDE.md) | Scope, architecture, safety design, storage, coding rules (sections 1–19) |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Branches, commits, pull requests, reviews, who owns what |
 | [`docs/architecture.md`](docs/architecture.md) | The two pipelines in detail |
 | [`docs/decisions/`](docs/decisions/README.md) | Every project decision, why it was made, and its history (ADRs) |
