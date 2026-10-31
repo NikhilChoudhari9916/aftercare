@@ -1,0 +1,11 @@
+[D1] Discharge instructions, page 1, Medication changes: Furosemide increased to 40 mg once daily in the morning (previously 20 mg). Start metoprolol succinate ER 25 mg once daily in the evening. Start potassium chloride ER 20 mEq once daily with breakfast. Continue lisinopril 10 mg once daily in the morning. STOP amlodipine.
+[D2] Discharge instructions, page 1, Pain relief: Do not take ibuprofen (Advil, Motrin) or naproxen (Aleve). These can cause fluid build-up and make heart failure worse. For pain, use acetaminophen (Tylenol) as directed.
+[D3] Discharge instructions, page 2, Daily care: Weigh yourself every morning after using the bathroom and before breakfast. Write it down. Limit sodium to less than 2,000 mg per day. Limit fluids to 2 liters per day.
+[D4] Discharge instructions, page 2, When to call: Call the cardiology nurse line if you gain more than 2 pounds in one day or 5 pounds in one week, have more swelling in your legs, ankles, or feet, feel dizzy or light-headed when standing, or need more pillows to breathe at night.
+[D5] Discharge instructions, page 2, Emergencies: Call 911 for chest pain, severe shortness of breath, fainting, or coughing up pink, foamy mucus.
+[D6] Discharge instructions, page 3, Follow-up: Blood test October 19. Cardiology, Dr. A. Rivera, October 20 at 10:30 a.m. See your primary care provider within 7 days.
+[L1] Furosemide label (summarized for testing): Can cause the body to lose too much water and salts. Dizziness, thirst, weakness, or muscle cramps can be signs and should be reported.
+[L2] Metoprolol succinate ER label (summarized for testing): Do not stop taking it suddenly; stopping suddenly can worsen chest pain or heart problems. May cause tiredness or dizziness. Swallow tablets whole or split along the score line; do not crush or chew.
+[L3] Ibuprofen OTC Drug Facts (summarized for testing): Ask a doctor before use if you have heart disease, high blood pressure, or take a diuretic (water pill). NSAIDs may increase the risk of heart attack or stroke.
+[L4] Potassium chloride ER label (summarized for testing): Take with meals and a full glass of water. Swallow whole; do not crush, chew, or suck the tablet.
+[L5] Lisinopril label (summarized for testing): Can cause dizziness, especially in the first days of treatment or when taken with a water pill. Can raise potassium levels in the blood.

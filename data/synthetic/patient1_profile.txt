@@ -1,0 +1,23 @@
+SYNTHETIC TEST PATIENT (no real patient data)
+Patient: "J.M.", age 67. Discharged October 12, 2026, after a hospital stay for heart failure (fluid build-up).
+
+Medicines (confirmed by patient):
+1. Furosemide 40 mg tablet | also known as: Lasix, water pill | 1 tablet by mouth once a day, morning | CHANGED (was 20 mg)
+2. Metoprolol succinate ER 25 mg tablet | also known as: Toprol XL | 1 tablet once a day, evening | NEW
+3. Lisinopril 10 mg tablet | also known as: Zestril, Prinivil | 1 tablet once a day, morning | CONTINUED
+4. Potassium chloride ER 20 mEq tablet | also known as: Klor-Con, K-Dur, potassium | 1 tablet once a day with breakfast | NEW
+5. Acetaminophen 500 mg tablet | also known as: Tylenol | 1 to 2 tablets every 6 hours as needed for pain; no more than 3,000 mg in 24 hours | AS NEEDED
+6. Amlodipine 5 mg tablet | also known as: Norvasc | STOPPED: do not take
+
+Follow-up visits:
+- Blood test (potassium and kidney function): October 19, 2026
+- Cardiology clinic, Dr. A. Rivera: October 20, 2026, 10:30 a.m.
+- Primary care: within 7 days of discharge
+
+Warning signs:
+- CALL CARE TEAM: weight gain of more than 2 lb in one day or 5 lb in one week; more swelling in legs, ankles, or feet; dizziness or light-headedness when standing; needing more pillows to breathe at night.
+- CALL 911: chest pain; severe shortness of breath; fainting; coughing up pink, foamy mucus.
+
+Diet limits: sodium under 2,000 mg a day; fluids under 2 liters (about 8 cups) a day; weigh every morning after using the bathroom and before breakfast.
+
+Care team: Cardiology nurse line, (555) 010-0142 (weekdays 8 a.m. to 5 p.m.); after hours, (555) 010-0199.

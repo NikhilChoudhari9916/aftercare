@@ -1,0 +1,38 @@
+[project]
+name = "aftercare"
+version = "0.1.0"
+description = "Helps adults understand their hospital discharge papers (course project, synthetic data only)."
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["storage", "data"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes: unused imports, undefined names
+    "I",    # import sorting
+    "B",    # bugbear: likely bugs
+    "UP",   # modern Python syntax
+    "SIM",  # simpler code
+    "S",    # bandit: security checks
+    "T20",  # no print() left in app code
+]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "T20"]   # tests use assert and may print
+"ui/**" = ["T20"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "eval: calls the real model; run by hand with `pytest -m eval`, never in CI",
+]

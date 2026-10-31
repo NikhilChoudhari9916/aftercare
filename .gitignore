@@ -1,0 +1,38 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Patient data and runtime files: never commit, even synthetic uploads
+storage/
+data/real/
+*.db
+*.sqlite
+*.sqlite3
+
+# Eval outputs (regenerate locally)
+tests/eval/results/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Personal Claude Code settings
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

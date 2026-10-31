@@ -1,0 +1,23 @@
+SYNTHETIC TEST PATIENT 2 (no real patient data)
+Patient: "R.S.", age 58. Discharged October 14, 2026, after a right total knee replacement.
+
+Medicines (confirmed by patient):
+1. Rivaroxaban 10 mg tablet | also known as: Xarelto, blood thinner | 1 tablet once a day, evening, for 12 days (last dose October 26) | NEW
+2. Oxycodone 5 mg tablet | also known as: Roxicodone, pain pill, opioid | 1 tablet every 6 hours as needed for severe pain | AS NEEDED
+3. Acetaminophen 500 mg tablet | also known as: Tylenol | 2 tablets (1,000 mg) every 8 hours; no more than 3,000 mg in 24 hours | NEW
+4. Docusate sodium 100 mg capsule | also known as: Colace, stool softener | 1 capsule twice a day while taking oxycodone | NEW
+5. Metformin 500 mg tablet | also known as: Glucophage | 1 tablet twice a day with breakfast and dinner | CONTINUED
+6. Meloxicam 15 mg tablet | also known as: Mobic | STOPPED while taking rivaroxaban
+
+Follow-up visits:
+- Physical therapy: starts October 16, 2026, three times a week
+- Orthopedic surgery, Dr. K. Osei (wound check and staple removal): October 28, 2026, 9:00 a.m.
+- Primary care: within 2 weeks of discharge
+
+Warning signs:
+- CALL CARE TEAM: fever over 101°F (38.3°C); redness, warmth, or drainage at the incision; new or increasing swelling, pain, or warmth in either calf; unusual bruising, nosebleeds, or bleeding gums; no bowel movement for 3 days.
+- CALL 911: chest pain or sudden shortness of breath; coughing up blood; signs of stroke; bleeding that will not stop.
+
+Diet and activity: no diet limits listed. Drink plenty of fluids and eat high-fiber foods while taking oxycodone. Do not drive while taking oxycodone. Walk with a walker until physical therapy says otherwise.
+
+Care team: Orthopedic nurse line, (555) 010-0233 (weekdays 8 a.m. to 5 p.m.); after hours, (555) 010-0288.
