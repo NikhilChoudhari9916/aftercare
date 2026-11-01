@@ -32,6 +32,7 @@ quote-style = "double"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-ra --strict-markers"
 markers = [
     "eval: calls the real model; run by hand with `pytest -m eval`, never in CI",
