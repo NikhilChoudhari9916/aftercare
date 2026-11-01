@@ -1,0 +1,7 @@
+[D1] Discharge instructions, Hospital Course: The patient was admitted with shortness of breath and leg swelling. Blood pressure was high on day 1, so the patient was placed on Prinivil 10 mg daily. On day 3 kidney tests worsened and lisinopril was discontinued. Fluid was removed with furosemide.
+[D2] Discharge instructions, Discharge Medications: Furosemide 40 mg once daily in the morning. Carvedilol 6.25 mg twice daily with food (new). Atorvastatin 20 mg once daily at bedtime. No other medicines are listed.
+[D3] Discharge instructions, Followup: See the cardiology clinic in 1 week.
+[D4] Discharge instructions, When to call: Call the cardiology nurse line for weight gain of more than 3 pounds in two days, more swelling in the legs or feet, or needing more pillows to breathe at night.
+[D5] Discharge instructions, Emergencies: Call 911 for chest pain, severe shortness of breath, or fainting.
+[L1] Lisinopril label (summarized for testing; purpose and warnings only): Prinivil and Zestril are brand names of lisinopril. It is used to treat high blood pressure and heart failure. It can cause dizziness and can raise potassium levels and affect the kidneys.
+[L2] Carvedilol label (summarized for testing; purpose and warnings only): Used to treat heart failure and high blood pressure. It can cause dizziness and tiredness. Do not stop it suddenly.

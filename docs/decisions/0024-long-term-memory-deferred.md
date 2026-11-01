@@ -1,6 +1,6 @@
 # ADR-0024: Long-term memory is deferred; the rules are set now
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0029
 - **Date:** 2026-10-31
 - **Deciders:** team
 - **Supersedes:** none

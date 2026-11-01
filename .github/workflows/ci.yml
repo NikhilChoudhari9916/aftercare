@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff pytest
+          pip install ruff==0.8.4 pytest  # keep ruff in sync with .pre-commit-config.yaml
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Lint

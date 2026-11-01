@@ -1,6 +1,6 @@
 # ADR-0012: BM25 + aliases first; embeddings only if a retrieval test fails
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0028
 - **Date:** 2026-10 (recorded 2026-10-31)
 - **Deciders:** team
 - **Supersedes:** none

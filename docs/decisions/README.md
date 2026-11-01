@@ -25,7 +25,7 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0009](0009-streamlit-ui.md) | Streamlit for the MVP UI | Superseded by ADR-0010 |
 | [0010](0010-nicegui-ui.md) | NiceGUI for the web UI | Accepted |
 | [0011](0011-sqlite-sqlmodel.md) | SQLite + SQLModel for the MVP database | Accepted |
-| [0012](0012-bm25-first-retrieval.md) | BM25 + aliases first; embeddings only if a retrieval test fails | Accepted |
+| [0012](0012-bm25-first-retrieval.md) | BM25 + aliases first; embeddings only if a retrieval test fails | Superseded by ADR-0028 |
 | [0013](0013-local-storage-abstraction.md) | Local file storage behind `app/storage.py` | Accepted |
 | [0014](0014-versioned-prompts-and-eval.md) | Prompts are versioned files, gated by the eval suite | Accepted |
 | [0015](0015-team-git-workflow.md) | Protected `main`, reviewed PRs, pre-commit, and CI | Accepted |
@@ -34,9 +34,17 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0018](0018-model-choice.md) | Sonnet 5.5 for main work, Haiku 5.5 for fast checks, Opus when needed | Accepted |
 | [0019](0019-python-312.md) | Python 3.12 for everyone and CI | Accepted |
 | [0020](0020-s3-for-deployed-demo.md) | S3 storage only for the final demo; local for all development | Accepted (deferred to demo phase) |
-| [0021](0021-google-sign-in-shared-login.md) | Google sign-in for identity only; patients and aides are the same kind of user | Accepted |
+| [0021](0021-google-sign-in-shared-login.md) | Google sign-in for identity only; patients and aides are the same kind of user | Sign-in stands; shared login superseded by ADR-0032 |
 | [0022](0022-ics-first-calendar-later.md) | Downloadable `.ics` first; Google Calendar sync later | Accepted |
 | [0023](0023-medlineplus-for-terms.md) | MedlinePlus as the cited source for plain-language terms | Accepted |
-| [0024](0024-long-term-memory-deferred.md) | Long-term memory deferred; rules set now | Accepted |
+| [0024](0024-long-term-memory-deferred.md) | Long-term memory deferred; rules set now | Superseded by ADR-0029 |
 | [0025](0025-diet-and-physio-agents-later.md) | Diet and physio agents planned as later specialists | Accepted |
 | [0026](0026-third-party-skills.md) | Eight third-party Claude Code skills, with guardrails | Accepted |
+| [0027](0027-fda-purpose-and-warnings-only.md) | openFDA labels contribute purpose and warnings only, never dosage | Accepted |
+| [0028](0028-hybrid-retrieval-faiss.md) | Per-patient hybrid retrieval (BM25 + embeddings in FAISS) | Accepted |
+| [0029](0029-long-term-memory-in-scope.md) | Short-term and long-term memory are in scope | Accepted |
+| [0030](0030-deck-scope-and-pipeline.md) | Use cases, pipeline steps, and input scope from the Assignment 3 deck (PDF input only) | Accepted |
+| [0031](0031-privacy-and-data-handling.md) | Privacy and data-handling rules from the Assignment 3 deck | Accepted |
+| [0032](0032-invited-aides-limited-role.md) | Aides are invited by email and get a limited role | Accepted |
+| [0033](0033-backend-owns-sign-in.md) | The backend owns Google sign-in and the session | Accepted |
+| [0034](0034-in-process-job-runner.md) | Slow work runs as background jobs in an in-process runner | Accepted |
