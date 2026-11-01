@@ -209,8 +209,10 @@ aftercare/
 ├── .claude/               # shared Claude Code settings and project skills (committed)
 ├── .github/               # CI workflow and pull request template
 ├── pyproject.toml         # ruff + pytest settings
-├── requirements.txt, .env.example, README.md, CONTRIBUTING.md, TEAM_SETUP.md
+├── requirements.txt, requirements-dev.txt, .env.example, README.md, CONTRIBUTING.md, TEAM_SETUP.md
 ```
+
+This is the **target layout**, not a to-do list: each package and table is created in the sprint that needs it (`docs/roadmap.md`).
 
 Module boundaries (enforced in review):
 - Only `app/llm.py` imports `anthropic`. Only `app/storage.py` touches files under `storage/`.
