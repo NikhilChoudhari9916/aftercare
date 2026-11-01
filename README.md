@@ -15,6 +15,7 @@ Rules, architecture, and team setup are in place. Code starts with build step 1 
 | [`TEAM_SETUP.md`](TEAM_SETUP.md) | Get your machine ready (about 15 minutes) |
 | [`CLAUDE.md`](CLAUDE.md) | Scope, architecture, safety design, storage, coding rules (sections 1–19) |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Branches, commits, pull requests, reviews, who owns what |
+| [`docs/roadmap.md`](docs/roadmap.md) | Sprint plan, who does what, and the open design findings |
 | [`docs/architecture.md`](docs/architecture.md) | The two pipelines in detail |
 | [`docs/decisions/`](docs/decisions/README.md) | Every project decision, why it was made, and its history (ADRs) |
 | [`KICKOFF_PROMPT.md`](KICKOFF_PROMPT.md) | The first message to give Claude Code for build step 1 |
@@ -34,24 +35,27 @@ flowchart TD
         u2 --> u3["Quote check and cleanup"]
         u3 --> u4["Patient confirms"]
         u4 --> u5["Profile saved<br/>versioned, per patient"]
-        u5 --> u6["Enrich and index<br/>RxNorm, FDA, MedlinePlus, BM25"]
+        u5 --> u6["Enrich and index<br/>RxNorm, FDA, MedlinePlus, BM25 + FAISS"]
     end
 
     subgraph qa["Question pipeline (each question)"]
         direction TB
-        q1["Safety gate<br/>Tier 1 gets fixed 911 text"] --> q2["Load memory<br/>profile, preferences, session chat"]
-        q2 --> q3["Orchestrator agent"]
+        q1["Safety gate<br/>Tier 1 gets fixed 911 text"] --> q2["Load memory<br/>session + this user's records"]
+        q2 --> q3["Orchestrator agent<br/>picks task, rewrites question"]
         q3 --> q4["Medicine agent"]
         q3 --> q5["Schedule agent"]
-        q3 --> q6["Summary agent"]
+        q3 --> q6["Summary agent<br/>papers, terms, diet, visit prep"]
         q4 --> q7["Validators<br/>citations, doses, no advice"]
         q5 --> q7
         q6 --> q7
         q7 --> q8["Short cited answer<br/>with follow-up buttons"]
+        q8 --> q9["Save confirmed facts only"]
     end
 
     upload --> files[("PDF files<br/>storage/patients/")]
-    upload --> db[("SQLite<br/>users, profile, chunks, logs")]
+    upload --> idx[("FAISS index<br/>one per patient")]
+    qa --> idx
+    upload --> db[("SQLite<br/>users, profile, chunks,<br/>memory records, logs")]
     qa --> db
     upload --> ext["External APIs<br/>Claude, FDA, MedlinePlus"]
     qa --> ext
@@ -65,7 +69,7 @@ flowchart TD
     classDef later fill:#ffffff,stroke:#888780,color:#444441,stroke-dasharray:4 4
     class q1,q7 safe
     class u2,q3,q4,q5,q6,summary ai
-    class user,ui,google,u1,u3,u4,u5,u6,q2,q8,files,db,ext,sched code
+    class user,ui,google,u1,u3,u4,u5,u6,q2,q8,q9,files,idx,db,ext,sched code
     class gcal later
 ```
 
@@ -73,4 +77,6 @@ Red = fixed safety code. Green = uses AI. Gray = plain code or data. Dashed = pl
 
 Agents decide *how* to answer; fixed code decides *whether* safety checks run. Diet and physiotherapy agents will plug in under the orchestrator later.
 
-Stack: Python 3.12, FastAPI, NiceGUI, Google sign-in, PyMuPDF, pdfplumber, Anthropic SDK (Claude), Pydantic, SQLite + SQLModel, rank_bm25, RxNorm, openFDA, MedlinePlus, icalendar, textstat, pytest, ruff.
+Input is the digital PDF for the paperwork and typed text for questions; photo and voice are not built for now.
+
+Stack: Python 3.12, FastAPI, NiceGUI, Google sign-in, PyMuPDF, pdfplumber, Anthropic SDK (Claude), Pydantic, SQLite + SQLModel, rank_bm25, FAISS with a local embedding model, RxNorm, openFDA, MedlinePlus, icalendar, textstat, pytest, ruff.

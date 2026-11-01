@@ -1,0 +1,20 @@
+SYNTHETIC TEST PATIENT 3 (no real patient data; invented for testing, modeled on the contradiction in the HW2 case C7)
+Patient: "H.K.", age 71. Discharged October 20, 2026, after a hospital stay for heart failure with fluid around the lungs.
+
+Medicines (confirmed by patient, matching the Discharge Medications section):
+1. Furosemide 40 mg tablet | also known as: Lasix, water pill | 1 tablet by mouth once a day, morning | CONTINUED
+2. Carvedilol 6.25 mg tablet | also known as: Coreg | 1 tablet twice a day with food | NEW
+3. Atorvastatin 20 mg tablet | also known as: Lipitor | 1 tablet once a day at bedtime | CONTINUED
+
+Not on the confirmed list: lisinopril (also known as Prinivil, Zestril). The Hospital Course section mentions it, but the Discharge Medications section does not list it.
+
+Follow-up visits:
+- Cardiology clinic: "in 1 week" (no exact date in the paperwork)
+
+Warning signs:
+- CALL CARE TEAM: weight gain of more than 3 lb in two days; more swelling in the legs or feet; needing more pillows to breathe at night.
+- CALL 911: chest pain; severe shortness of breath; fainting.
+
+Diet limits: sodium under 2,000 mg a day.
+
+Care team: Cardiology nurse line, (555) 010-0311 (weekdays 8 a.m. to 5 p.m.).

@@ -1,6 +1,6 @@
 # ADR-0021: Google sign-in for identity only; patients and aides are the same kind of user
 
-- **Status:** Accepted
+- **Status:** Accepted for Google sign-in with identity only. The shared login and the single kind of user are superseded by ADR-0032.
 - **Date:** 2026-10-31
 - **Deciders:** team
 - **Supersedes:** none
