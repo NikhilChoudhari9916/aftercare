@@ -198,6 +198,8 @@ aftercare/
 ├── ui/                    # NiceGUI web app (separate process)
 │   ├── main.py            # starts the UI, page routes
 │   ├── api_client.py      # the only file in ui/ that calls the backend
+│   ├── content.py         # plain-language text and small HTML helpers (no NiceGUI, easy to test)
+│   ├── security.py        # security headers for every UI response
 │   ├── pages/             # upload.py, confirm.py, summary.py, schedule.py, ask.py
 │   └── components/        # citation_tag.py, followup_buttons.py, read_aloud.py
 ├── docs/architecture.md   # architecture diagrams (Mermaid)

@@ -53,7 +53,7 @@ No critical or high findings. Two low findings were fixed in the same pull reque
 
 | Finding | Severity | Raise it in |
 |---|---|---|
-| Security headers on the UI pages (no framing, no sniffing, referrer policy), and never render a user's display name with unsanitized HTML | Low | Sprint 1, PR 3 (UI) |
+| ~~Security headers on the UI pages~~ **Done in sprint 1, PR 3** (no framing, no sniffing, referrer policy, no caching of pages). Standing rule: never render a user's display name with unsanitized HTML | Low | Done |
 | Denied-access events can be spammed by a signed-in user, which grows the table; collapse or rate-limit them | Low | Sprint 2, before patient endpoints |
 | Anyone with a Google account can sign up once the consent screen leaves Testing mode; add per-user upload quotas | Low | Sprint 2 |
 | No rate limiting on `/auth/*` | Low | Before the demo (sprint 9) |
