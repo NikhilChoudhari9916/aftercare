@@ -223,7 +223,7 @@ Module boundaries (enforced in review):
 
 ## 11. API endpoints
 
-Auth: `GET /auth/login` · `GET /auth/callback` · `POST /auth/logout` · `GET /me`
+Auth: `GET /auth/login?next=/path` · `GET /auth/callback` · `POST /auth/logout` (redirects with 303 to the UI so the browser receives the cookie-clearing response) · `GET /me`
 
 Everything below requires a signed-in user and a role check on the patient (ADR-0032). An **aide** may call only these: the `GET` endpoints for summary, schedule, `.ics`, visit prep, and memory (read), `POST /patients/{id}/ask`, `POST /patients/{id}/doses`, and `GET|POST /patients/{id}/questions`. Every other endpoint is owner-only and returns 403 for an aide.
 

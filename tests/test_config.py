@@ -57,3 +57,16 @@ def test_production_starts_when_everything_is_set():
 def test_unknown_environment_name_is_rejected():
     with pytest.raises(ValidationError):
         Settings(app_env="staging")
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    [
+        ({"app_env": "development"}, False),
+        ({"app_env": "test"}, False),
+        ({"app_env": "development", "backend_url": "https://api.example.com"}, True),
+        (PRODUCTION_SECRETS, True),
+    ],
+)
+def test_cookies_are_secure_in_production_and_whenever_the_backend_uses_https(values, expected):
+    assert Settings(**values).cookies_secure is expected

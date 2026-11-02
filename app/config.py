@@ -51,6 +51,11 @@ class Settings(BaseModel):
                 raise ValueError(f"Missing required settings in production: {', '.join(missing)}")
         return self
 
+    @property
+    def cookies_secure(self) -> bool:
+        """Secure cookies everywhere except plain-http local development (ADR-0033)."""
+        return self.app_env == "production" or self.backend_url.startswith("https://")
+
     @classmethod
     def from_env(cls) -> Self:
         values = {
