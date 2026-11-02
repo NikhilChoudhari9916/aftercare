@@ -46,3 +46,16 @@ If time runs short, cut from the bottom: sprints 7 and 8 are the stretch (findin
 | 8 | One `delete_patient()` removes the database rows, PDFs, and index together, with a test | Starts in sprint 2; extended in sprints 4 and 7 |
 
 Other prompts to raise when the time comes: before sprint 2, adding `requirements.txt` needs the team's approval of each new package (`CLAUDE.md` section 16); before sprint 4, approve `faiss-cpu` and `sentence-transformers` and pick the embedding model; before sprint 6, the prompt v8 change goes through `aftercare-prompt-change`.
+
+## Findings from the sign-in security review (sprint 1), and when to raise them
+
+No critical or high findings. Two low findings were fixed in the same pull request (cookies are `Secure` whenever the backend uses HTTPS, and the display name is capped at 200 characters). Still open:
+
+| Finding | Severity | Raise it in |
+|---|---|---|
+| Security headers on the UI pages (no framing, no sniffing, referrer policy), and never render a user's display name with unsanitized HTML | Low | Sprint 1, PR 3 (UI) |
+| Denied-access events can be spammed by a signed-in user, which grows the table; collapse or rate-limit them | Low | Sprint 2, before patient endpoints |
+| Anyone with a Google account can sign up once the consent screen leaves Testing mode; add per-user upload quotas | Low | Sprint 2 |
+| No rate limiting on `/auth/*` | Low | Before the demo (sprint 9) |
+| No audit event for failed sign-ins | Info | Before the demo (sprint 9) |
+| Authlib keeps the PKCE verifier in a signed but not encrypted login cookie (HttpOnly, Secure over HTTPS, 10-minute life); this is the library's standard design | Info | Revisit if we host publicly |
