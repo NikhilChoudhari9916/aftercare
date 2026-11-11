@@ -1,6 +1,6 @@
 # ADR-0008: Hand-written agents on the Anthropic SDK, with hard limits
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0035
 - **Date:** 2026-10 (recorded 2026-10-31)
 - **Deciders:** team
 - **Supersedes:** none

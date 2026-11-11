@@ -6,7 +6,7 @@ Graduate course project (INFO 7375, Building AI Applications). **Synthetic data 
 
 ## Status
 
-The foundation is built: configuration, database setup, file storage, and a health check, all tested. Google sign-in is next (see [`docs/roadmap.md`](docs/roadmap.md)).
+Built so far: the foundation (configuration, database, file storage, health check) and Google sign-in with a phone-friendly login page, all tested. Document upload is next (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Run it
 
@@ -19,7 +19,10 @@ pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env                            # then fill in your own values
 pytest                                          # run the tests
 uvicorn app.main:app --port 8000                # start the backend; try http://localhost:8000/health
+python -m ui.main                               # in a second terminal: the web page at http://localhost:8080
 ```
+
+Signing in needs your own Google test client in `.env` (steps in [`TEAM_SETUP.md`](TEAM_SETUP.md)). The page only listens on `127.0.0.1`; set `UI_HOST` to change that.
 
 Never commit `.env`. Lint and format checks are `ruff check .` and `ruff format --check .`.
 
