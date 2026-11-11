@@ -6,6 +6,8 @@ One-week sprints, three people, three tracks. Every sprint ends with something t
 
 **Right now one person is building.** Onboarding the other two is postponed. Until they join, work through the columns in order (A, then B, then C within each sprint). The table shows what can run in parallel once they do.
 
+**Assignment slice (Nov 11, ADR-0036):** for the course assignment due Nov 15, a thin end-to-end slice (upload to summary, a cited question through a LangGraph workflow with tools, and the schedule) is built first, ahead of the order below. The rows for sprints 2 to 6 describe the full plan, which resumes after the assignment; the slice uses BM25 only, short-term memory only, and a minimal job runner.
+
 **Working agreement:** sprint planning on day 1 (pick issues, one task = one issue = one pull request), a short written standup on working days, a demo and retro on the last day. A task is done when it is merged, its tests pass in CI, and it follows the checklist in the PR template.
 
 ## Sprints

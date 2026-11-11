@@ -18,6 +18,7 @@ def make_settings(**overrides: Any) -> Settings:
         "google_client_id": "client-id",
         "google_client_secret": "client-secret",
         "login_state_secret": "state-secret",
+        "anthropic_api_key": "anthropic-test-key",
         "ui_url": UI_URL,
         "backend_url": BACKEND_URL,
     }
