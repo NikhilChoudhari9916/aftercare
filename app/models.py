@@ -78,3 +78,78 @@ class LoginSession(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utc_now)
     last_seen_at: datetime = Field(default_factory=utc_now)
     expires_at: datetime
+
+
+class JobType(StrEnum):
+    EXTRACT = "EXTRACT"
+
+
+class JobStatus(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class ProfileStatus(StrEnum):
+    DRAFT = "DRAFT"
+    CONFIRMED = "CONFIRMED"
+
+
+class Document(SQLModel, table=True):
+    """An uploaded PDF. The file lives in storage; only IDs and counts are kept here."""
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    patient_id: str = Field(foreign_key="patient.id", index=True)
+    uploaded_at: datetime = Field(default_factory=utc_now)
+    page_count: int
+
+
+class DocumentPage(SQLModel, table=True):
+    id: str = Field(default_factory=new_id, primary_key=True)
+    document_id: str = Field(foreign_key="document.id", index=True)
+    patient_id: str = Field(index=True)
+    number: int
+    text: str
+
+
+class Job(SQLModel, table=True):
+    """Slow work that runs in the background (ADR-0034). Never holds patient text."""
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    patient_id: str = Field(foreign_key="patient.id", index=True)
+    document_id: str | None = Field(default=None, foreign_key="document.id")
+    type: JobType
+    status: JobStatus = JobStatus.QUEUED
+    step: str | None = None
+    error_code: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class ProfileVersion(SQLModel, table=True):
+    """One extraction of one document. DRAFT until the patient has decided on every item."""
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    patient_id: str = Field(foreign_key="patient.id", index=True)
+    document_id: str = Field(foreign_key="document.id")
+    version: int
+    status: ProfileStatus = ProfileStatus.DRAFT
+    discharge_date: str | None = None
+    injection_flags: str = "[]"  # JSON: page, kind, short excerpt
+    created_at: datetime = Field(default_factory=utc_now)
+    confirmed_at: datetime | None = None
+
+
+class ProfileItem(SQLModel, table=True):
+    """One extracted fact. `data` is the JSON of the typed item (see app/extraction/schema.py)."""
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    profile_version_id: str = Field(foreign_key="profileversion.id", index=True)
+    patient_id: str = Field(index=True)
+    section: str
+    position: int
+    data: str
+    quote_status: str  # "verified" or "not_found"
+    confirmed: bool = False

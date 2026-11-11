@@ -61,4 +61,11 @@ class ExtractedProfile(BaseModel):
     diet_limits: list[ExtractedDietLimit]
 
 
-SOURCED_SECTIONS = ("medicines", "warning_signs", "follow_ups", "care_team", "diet_limits")
+SECTION_MODELS: dict[str, type[Sourced]] = {
+    "medicines": ExtractedMedication,
+    "warning_signs": ExtractedWarningSign,
+    "follow_ups": ExtractedFollowUp,
+    "care_team": ExtractedContact,
+    "diet_limits": ExtractedDietLimit,
+}
+SOURCED_SECTIONS = tuple(SECTION_MODELS)
