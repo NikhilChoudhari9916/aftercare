@@ -37,6 +37,7 @@ class Settings(BaseModel):
 
     anthropic_api_key: str = ""
     llm_timeout_seconds: float = 60.0
+    job_workers: int = 2
     max_extraction_attempts: int = 2
     max_tool_calls: int = 6
     agent_timeout_seconds: float = 30.0

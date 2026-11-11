@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -102,6 +103,13 @@ def build_upload_graph(llm: LLM, settings: Settings):
     )
     graph.add_edge("normalize", END)
     return graph.compile()
+
+
+def iter_upload(llm: LLM, settings: Settings, pdf_bytes: bytes) -> Iterator[tuple[str, dict]]:
+    """Run the graph and yield (node name, what that node added) as each node finishes."""
+    graph = build_upload_graph(llm, settings)
+    for chunk in graph.stream({"pdf_bytes": pdf_bytes}, stream_mode="updates"):
+        yield from chunk.items()
 
 
 def run_upload(llm: LLM, settings: Settings, pdf_bytes: bytes) -> UploadState:

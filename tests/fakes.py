@@ -15,6 +15,12 @@ class FakeLLM:
         self._replies = list(replies or [])
         self.calls: list[dict[str, Any]] = []
 
+    def queue_extraction(self, item) -> None:
+        self._extractions.append(item)
+
+    def queue_reply(self, item) -> None:
+        self._replies.append(item)
+
     def extract(self, *, model, system, user, schema: type[T], max_tokens=8192, effort=None) -> T:
         self.calls.append(
             {"kind": "extract", "model": model, "system": system, "user": user, "schema": schema}

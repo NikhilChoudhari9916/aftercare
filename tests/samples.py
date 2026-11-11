@@ -134,3 +134,13 @@ def patient1_profile() -> ExtractedProfile:
             )
         ],
     )
+
+
+def make_pdf(*page_texts: str) -> bytes:
+    """A tiny real PDF with the given text on each page."""
+    import pymupdf
+
+    document = pymupdf.open()
+    for text in page_texts:
+        document.new_page().insert_text((72, 72), text)
+    return document.tobytes()

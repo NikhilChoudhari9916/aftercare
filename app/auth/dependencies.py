@@ -51,29 +51,35 @@ def _record_denied(db: Session, user: User, patient_id: str) -> None:
     db.commit()
 
 
-def require_access(*allowed_roles: Role) -> Callable[..., PatientAccess]:
-    """Dependency for routes with a `patient_id` path parameter.
+def check_access(
+    db: Session, user: User, patient_id: str, allowed_roles: tuple[Role, ...]
+) -> PatientAccess:
+    """No access at all is a 404 (so patient IDs can't be probed); the wrong role is a 403.
 
-    No access at all is a 404 (so patient IDs can't be probed); the wrong role is a 403.
     Every denial is recorded as an access event, with IDs only.
     """
+    access = db.exec(
+        select(PatientAccess).where(
+            PatientAccess.patient_id == patient_id,
+            PatientAccess.user_id == user.id,
+            PatientAccess.status == AccessStatus.ACTIVE,
+        )
+    ).first()
+    expired = access is not None and access.expires_at is not None
+    expired = expired and access.expires_at <= utc_now()
+    if access is None or expired:
+        _record_denied(db, user, patient_id)
+        raise HTTPException(status_code=404, detail="Not found")
+    if access.role not in allowed_roles:
+        _record_denied(db, user, patient_id)
+        raise HTTPException(status_code=403, detail="Not allowed")
+    return access
+
+
+def require_access(*allowed_roles: Role) -> Callable[..., PatientAccess]:
+    """Dependency for routes with a `patient_id` path parameter."""
 
     def dependency(patient_id: str, user: CurrentUser, db: DbSession) -> PatientAccess:
-        access = db.exec(
-            select(PatientAccess).where(
-                PatientAccess.patient_id == patient_id,
-                PatientAccess.user_id == user.id,
-                PatientAccess.status == AccessStatus.ACTIVE,
-            )
-        ).first()
-        expired = access is not None and access.expires_at is not None
-        expired = expired and access.expires_at <= utc_now()
-        if access is None or expired:
-            _record_denied(db, user, patient_id)
-            raise HTTPException(status_code=404, detail="Not found")
-        if access.role not in allowed_roles:
-            _record_denied(db, user, patient_id)
-            raise HTTPException(status_code=403, detail="Not allowed")
-        return access
+        return check_access(db, user, patient_id, allowed_roles)
 
     return dependency
