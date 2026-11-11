@@ -8,6 +8,7 @@ PRODUCTION_SECRETS = {
     "google_client_id": "id",
     "google_client_secret": "secret",
     "login_state_secret": "state",
+    "anthropic_api_key": "key",
 }
 
 
@@ -42,7 +43,8 @@ def test_logging_patient_text_is_refused_in_production():
 
 
 @pytest.mark.parametrize(
-    "missing", ["google_client_id", "google_client_secret", "login_state_secret"]
+    "missing",
+    ["google_client_id", "google_client_secret", "login_state_secret", "anthropic_api_key"],
 )
 def test_production_requires_sign_in_secrets(missing):
     values = {**PRODUCTION_SECRETS, missing: ""}

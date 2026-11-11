@@ -21,7 +21,7 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0005](0005-three-tier-safety-gate.md) | Three-tier safety gate: rules + classifier run 3 times | Accepted |
 | [0006](0006-deterministic-schedule.md) | Schedules, doses, and dates computed by code, never the LLM | Accepted |
 | [0007](0007-digital-pdf-and-confirmation.md) | Digital PDFs only; patient confirms every extracted item | Accepted |
-| [0008](0008-hand-written-agents.md) | Hand-written agents on the Anthropic SDK, with hard limits | Accepted |
+| [0008](0008-hand-written-agents.md) | Hand-written agents on the Anthropic SDK, with hard limits | Superseded by ADR-0035 |
 | [0009](0009-streamlit-ui.md) | Streamlit for the MVP UI | Superseded by ADR-0010 |
 | [0010](0010-nicegui-ui.md) | NiceGUI for the web UI | Accepted |
 | [0011](0011-sqlite-sqlmodel.md) | SQLite + SQLModel for the MVP database | Accepted |
@@ -48,3 +48,5 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0032](0032-invited-aides-limited-role.md) | Aides are invited by email and get a limited role | Accepted |
 | [0033](0033-backend-owns-sign-in.md) | The backend owns Google sign-in and the session | Accepted |
 | [0034](0034-in-process-job-runner.md) | Slow work runs as background jobs in an in-process runner | Accepted |
+| [0035](0035-langgraph-orchestration.md) | LangGraph orchestrates the upload and question workflows | Accepted |
+| [0036](0036-assignment-slice.md) | A thin end-to-end slice for the assignment, with deliberate deferrals | Accepted |
