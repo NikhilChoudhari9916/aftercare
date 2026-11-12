@@ -13,3 +13,4 @@ pymupdf==2.1
 python-multipart==0.0.33
 icalendar==7.3.0
 textstat==0.7.13
+PyYAML==6.0.3

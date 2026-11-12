@@ -1,0 +1,77 @@
+# Keyword rules for the safety gate (CLAUDE.md section 5, ADR-0005).
+#
+# Each entry is a case-insensitive regular expression, matched against the patient's question after
+# it is lowercased and its curly quotes are straightened. Write patterns in single quotes so a
+# backslash is a backslash. Use `can.?t` instead of spelling out an apostrophe.
+#
+# Rules only ever RAISE the tier. A question that matches nothing is still sent to the classifier,
+# and the final tier is the more severe of the two. When a pattern could be too broad, prefer
+# broad: a missed emergency is the worst failure, a needless "call your care team" is a nuisance.
+#
+# Changing this file is a safety change: run the aftercare-safety-review skill and keep Tier 1
+# recall at 100% on tests/eval/eval_cases.json (tests/safety/test_eval_cases.py checks it).
+
+# Tier 1: possible emergency. The reply is the fixed 911 text.
+tier1:
+  chest_symptoms:
+    - '\bchest\b.{0,40}\b(hurt|hurts|hurting|pain|pains|painful|pressure|tight|tightness|sore|ache|aching|squeez\w*|heavy|heaviness|burning|discomfort|crush\w*)\b'
+    - '\b(pain|pressure|tightness|ache|discomfort|squeezing|heaviness)\b.{0,20}\b(in|across|on|around|behind)\b.{0,8}\b(chest|breastbone|sternum)\b'
+    - '\bheart attack\b'
+  trouble_breathing:
+    - '\b(can.?t|cannot|can not|unable to|not able to|hard to|trouble|difficulty|struggling to|hardly able to)\b.{0,20}\b(breath|breathe|breathing)\b'
+    - '\bshort(ness)? of breath\b'
+    - '\bgasping\b'
+  stroke_signs:
+    - '\bface\b.{0,25}\b(droop\w*|numb\w*|uneven|sagging)\b'
+    - '\b(slurred|slurring)\b'
+    - '\b(can.?t|trouble|difficulty)\b.{0,15}\b(speak|speaking|talk|talking|find (the )?words)\b'
+    - '\bsudden\w*\b.{0,40}\b(weak\w*|numb\w*|confus\w*|vision|can.?t see|loss of balance)\b'
+    - '\b(arm|leg|one side)\b.{0,25}\b(weak|numb)\w*'
+    - '\b(having|had) a stroke\b'
+    - '\bworst headache\b'
+  fainting:
+    - '\b(faint|fainted|fainting|passed out|pass out|passing out|black(ed|ing)? out|collapsed|unconscious|unresponsive|lost consciousness|losing consciousness)\b'
+  severe_bleeding:
+    - '\bbleed\w*\b.{0,30}\b(won.?t stop|will not stop|not stopping|doesn.?t stop|heavy|severe|badly|a lot|soaking|gushing)\b'
+    - '\b(heavy|severe|uncontrolled)\b.{0,12}\bbleed\w*\b'
+    - '\b(cough\w*|vomit\w*|threw|throw\w*|spit|spat|spitting)( up)? blood\b'
+    - '\bblood\b.{0,20}\b(everywhere|gushing|pouring|soaking)\b'
+    - '\btarry\b|\bblack,? (tarry )?stools?\b'
+  fluid_in_lungs:
+    - '\bpink,? foamy\b'
+  self_harm:
+    - '\bsuicid\w*\b'
+    - '\b(kill|hurt|harm|end)\b.{0,8}\b(myself|my own life|my life)\b'
+    - '\bwant(ed)? to die\b|\bwish i was dead\b|\bbetter off dead\b|\bbetter off without me\b|\bend it all\b|\bno reason to live\b'
+    - '\bdon.?t want to (live|be alive|be here)\b'
+  possible_overdose:
+    - '\boverdos\w*\b'
+    - '\btook too (much|many)\b'
+    - '\b(accidentally|mistakenly|by mistake)\b.{0,20}\b(took|taken|swallowed|ate)\b'
+    - '\b(took|swallowed|ate)\b.{0,15}\b(the whole|a whole|an entire|all (of )?(my|the))\b.{0,15}\b(bottle|pack|box|pills|tablets)\b'
+    - '\bswallowed too\b'
+    - '\bpoison\w*\b'
+
+# Tier 2: needs the care team soon. The answer leads with the care team's name and number.
+tier2:
+  skip_or_change_a_dose:
+    - '\b(skip|skipped|skipping|miss|missed|missing|forgot|forgotten|forget)\b.{0,25}\b(dose|doses|pill|pills|tablet|tablets|capsule|capsules|medicine|medicines|medication|medications|meds)\b'
+    - '\bdoubl(e|ed|ing)\b(?![- ]?check)'
+    - '\btake (two|2|three|3|double|extra|more)\b.{0,30}\b(instead|at once|together|at the same time)\b'
+    - '\binstead of (1|one|just one|a single)\b'
+    - '\b(extra|additional|another)\b.{0,5}\b(dose|pill|tablet)\b'
+    - '\btook (double|twice|an extra|extra)\b'
+  new_or_worsening_symptoms:
+    - '\bdizz\w*\b|\blight.?headed\b|\bvertigo\b'
+    - '\b(swollen|swelling|swell\w*)\b.{0,25}\b(calf|calves|leg|legs|ankle|ankles|foot|feet|face|hands?)\b'
+    - '\b(calf|calves|leg|legs|ankle|ankles|foot|feet|face|hands?)\b.{0,25}\b(swollen|swelling)\b'
+    - '\bgain(ed|ing)?\b.{0,20}\b(pounds?|lbs?|kilos?|kg)\b'
+    - '\b(pounds?|lbs?)\b.{0,20}\b(gained|heavier)\b'
+    - '\b(i|my)\b.{0,30}\bbleed(ing|s)?\b'
+    - '\bgums?\b.{0,15}\bbleed\w*\b|\bnosebleeds?\b|\bblood in (my )?(urine|stool|poop|vomit|spit)\b'
+
+# Words that, next to one of the patient's own medicine names, mean "I changed or missed a dose".
+# "stop" is deliberately absent: "when do I stop the Xarelto?" is a plain question about the papers.
+# The classifier decides about stopping.
+medicine_actions:
+  tier2: '\b(skip|skipped|skipping|double|doubled|doubling|forgot|missed|miss)\b'
