@@ -44,7 +44,16 @@ def _min_height_px(selector: str) -> int:
     return int(re.search(r"min-height:\s*(\d+)px", rule.group(1)).group(1))
 
 
-@pytest.mark.parametrize("selector", [".ac-nbtn", ".q-btn.ac-btn", ".q-btn.ac-choice"])
+@pytest.mark.parametrize(
+    "selector",
+    [
+        ".ac-nbtn",
+        ".q-btn.ac-btn",
+        ".q-btn.ac-choice",
+        ".ac-plan-toggle .q-btn",
+        ".q-btn.ac-plan-small",
+    ],
+)
 def test_buttons_are_big_enough_to_tap(selector):
     assert _min_height_px(selector) >= 48
 

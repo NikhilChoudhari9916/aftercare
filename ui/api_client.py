@@ -101,6 +101,11 @@ class MedicineLine(BaseModel):
     status: str
     end_date: str | None
     source_page: int
+    item_id: str = ""
+    times: list[str] = []
+    suggested_times: list[str] = []
+    times_needed: int | None = None
+    chosen: bool = False
 
 
 class DoseTime(BaseModel):
@@ -111,11 +116,18 @@ class DoseTime(BaseModel):
 
 
 class FollowUpLine(BaseModel):
+    item_id: str = ""
     what: str
     when: str
     with_whom: str | None
+    kind: str = "no_date"  # booked_time, date_only, window, or no_date (what the papers gave)
+    papers_date: str | None = None
+    papers_time: str | None = None
+    status: str | None = None  # BOOKED or NOT_BOOKED once the patient has saved a plan
     date: str | None
     time: str | None
+    call_on: str | None = None
+    chosen: bool = False
     in_calendar: bool
     source_page: int
 
@@ -124,6 +136,7 @@ class Schedule(BaseModel):
     version: int
     daily: list[DoseTime]
     needs_timing: list[MedicineLine]
+    plan_medicines: list[MedicineLine] = []
     as_needed: list[MedicineLine]
     stopped: list[MedicineLine]
     follow_ups: list[FollowUpLine]
@@ -277,3 +290,14 @@ class BackendClient:
         return await self._get_confirmed(
             Schedule, session_token, f"/patients/{patient_id}/schedule"
         )
+
+    async def save_plan(
+        self, session_token: str | None, patient_id: str, plan: dict[str, Any]
+    ) -> Schedule:
+        """Save the patient's reminder times and visit plans, all at once (ADR-0042)."""
+        response = await self._send("PUT", f"/patients/{patient_id}/plan", session_token, json=plan)
+        if response.status_code in (403, 404, 422):
+            raise Rejected(_rejection_message(response))
+        if response.status_code != 200:
+            raise BackendUnavailable(f"status {response.status_code}")
+        return self._parse(Schedule, response)

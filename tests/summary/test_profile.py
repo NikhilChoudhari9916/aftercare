@@ -1,6 +1,6 @@
 import json
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.models import (
     Document,
@@ -108,3 +108,25 @@ def test_another_patients_items_are_never_loaded(db: Session):
     assert [m.name_as_written for m in mine.medicines] == [first.name_as_written]
     assert [m.name_as_written for m in theirs.medicines] == [second.name_as_written]
     assert json.loads(first.model_dump_json())["name_as_written"] not in str(theirs.medicines)
+
+
+def test_item_ids_line_up_with_the_lists_so_a_plan_can_point_at_them(db: Session):
+    patient_id = make_patient(db)
+    first, second, *_ = patient1_profile().medicines
+    version = add_version(
+        db, patient_id, 1, ProfileStatus.CONFIRMED, [(first, True), (second, True)]
+    )
+    stored = db.exec(
+        select(ProfileItem)
+        .where(ProfileItem.profile_version_id == version.id)
+        .order_by(ProfileItem.position)
+    ).all()
+
+    profile = load_confirmed_profile(db, patient_id)
+
+    assert profile.medicine_ids == [item.id for item in stored]
+    assert [m.name_as_written for m in profile.medicines] == [
+        first.name_as_written,
+        second.name_as_written,
+    ]
+    assert profile.follow_up_ids == []
