@@ -275,6 +275,8 @@ a.ac-action .ac-arrow { background: var(--white); color: var(--bg); margin-left:
 
 /* "Looks right" / "Remove" on each item */
 .ac-choice-row { gap: 10px; flex-wrap: nowrap; width: 100%; }
+.ac-plan-toggle .q-btn { min-height: 48px; }
+.q-btn.ac-plan-small { min-height: 48px; min-width: 48px; }
 .q-btn.ac-choice {
   flex: 1 1 0; min-width: 0; padding: 0 8px; font-size: 0.92rem; min-height: 48px; border-radius: 999px;
   font-weight: 700; text-transform: none; background: #fff; color: var(--ink); border: 1.5px solid var(--line);

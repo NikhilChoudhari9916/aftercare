@@ -194,7 +194,7 @@ HOW_IT_WORKS = (
         "auto_stories",
         "Understand and plan",
         "A plain-language summary, a medicine schedule, and reminders.",
-        True,
+        False,
     ),
 )
 
@@ -229,11 +229,12 @@ def visit_when(when: str, with_whom: str | None) -> str:
 
 
 SCHEDULE_TIP = (
-    "These times are a suggestion based on your papers. " "You can move them in your calendar app."
+    "Times start as suggestions from your papers. "
+    "Choose your own in “Set up your reminders”, and the calendar file will use them."
 )
 NEEDS_TIMING_NOTE = (
-    "Your papers don't say a clear time of day for these. "
-    "They are shown as written. Please choose a time that works with your care team or pharmacist."
+    "Your papers don't say a clear time of day for these, so they are not in the calendar yet. "
+    "The patient chooses their times in “Set up your reminders”."
 )
 CALENDAR_REDOWNLOAD = "If you change your papers, download the calendar file again."
 
@@ -243,3 +244,102 @@ def clock_label(hhmm: str) -> str:
     hour, minute = (int(part) for part in hhmm.split(":"))
     suffix = "AM" if hour < 12 else "PM"
     return f"{hour % 12 or 12}:{minute:02d} {suffix}"
+
+
+# --- planning (ADR-0042) -----------------------------------------------------------------
+
+PLAN_INTRO = (
+    "Choose when you take each medicine and what you will do about each visit. "
+    "These are your choices, not your papers. Your papers stay as they are."
+)
+VISIT_KIND_NOTES = {
+    "booked_time": "Your papers give a date and a time. Check that they are right.",
+    "date_only": "Your papers give a date but no time. Add the time if you know it.",
+    "window": "Your papers give a window of time, not one time. Pick when you plan to go.",
+    "no_date": "Your papers don't give a date. You still need to call to book this visit.",
+}
+TIMES_NOTE_FIXED = "Your papers say {phrase} a day, so pick {count}."
+TIMES_NOTE_FREE = "Your papers don't say a clear time. Add the times you will take it, or none."
+PLAN_SAVED = "Saved. Your schedule and calendar file now use your choices."
+BOOKED, NOT_BOOKED = "BOOKED", "NOT_BOOKED"
+
+
+def format_day(iso_day: str | None) -> str:
+    """ "2026-10-20" becomes "Tue, Oct 20, 2026"."""
+    if not iso_day:
+        return ""
+    try:
+        day = date.fromisoformat(iso_day)
+    except ValueError:
+        return iso_day
+    return f"{day.strftime('%a, %b')} {day.day}, {day.year}"
+
+
+def times_note(times_needed: int | None) -> str:
+    if not times_needed:
+        return TIMES_NOTE_FREE
+    phrase = "1 time" if times_needed == 1 else f"{times_needed} times"
+    return TIMES_NOTE_FIXED.format(phrase=phrase, count=times_needed)
+
+
+def visit_start_state(line) -> dict[str, str]:
+    """What the form starts with for one visit: their saved choice, else what the papers gave."""
+    if line.chosen:
+        return {
+            "status": line.status or BOOKED,
+            "date": line.date or "",
+            "time": line.time or "",
+            "call_on": line.call_on or "",
+        }
+    if line.kind == "no_date":
+        return {"status": NOT_BOOKED, "date": "", "time": "", "call_on": ""}
+    return {
+        "status": BOOKED,
+        "date": line.papers_date or "",
+        "time": line.papers_time or "",
+        "call_on": "",
+    }
+
+
+def build_plan_payload(
+    medicine_times: dict[str, list[str]], visits: dict[str, dict[str, str]]
+) -> dict:
+    """The body for PUT /plan. Blank boxes are left out; the server checks everything else."""
+    return {
+        "medicines": [
+            {"item_id": item_id, "times": [value for value in times if value]}
+            for item_id, times in medicine_times.items()
+        ],
+        "visits": [
+            (
+                {
+                    "item_id": item_id,
+                    "status": BOOKED,
+                    "date": state["date"] or None,
+                    "time": state["time"] or None,
+                }
+                if state["status"] == BOOKED
+                else {
+                    "item_id": item_id,
+                    "status": NOT_BOOKED,
+                    "call_on": state["call_on"] or None,
+                }
+            )
+            for item_id, state in visits.items()
+        ],
+    }
+
+
+def visit_when_text(line) -> str:
+    """What to show for a visit: the patient's choice if they made one, else the papers' words."""
+    if line.status == NOT_BOOKED:
+        base = "Not booked yet"
+        return (
+            f"{base}. Reminder to call on {format_day(line.call_on)}."
+            if line.call_on
+            else (f"{base}.")
+        )
+    if line.chosen and line.date:
+        text = format_day(line.date)
+        return f"{text} at {clock_label(line.time)}" if line.time else f"{text} (all day)"
+    return visit_when(line.when, line.with_whom)
