@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -14,6 +14,7 @@ from app.auth.session import (
     end_session,
     set_session_cookie,
 )
+from app.config import LOCAL_HOSTS, Settings
 from app.models import (
     AccessEvent,
     AccessEventKind,
@@ -28,6 +29,13 @@ from app.models import (
 router = APIRouter()
 
 MAX_DISPLAY_NAME_LENGTH = 200
+
+# Fixed synthetic people for the test login. "dev:" can never be a real Google subject ID
+# (those are numbers) and ".test" can never be a real email domain.
+DEV_PEOPLE = {
+    "alex": ("dev:alex", "alex@aftercare.test", "Alex (test patient)"),
+    "sam": ("dev:sam", "sam@aftercare.test", "Sam (second test patient)"),
+}
 
 Provider = Annotated[IdentityProvider, Depends(get_identity_provider)]
 
@@ -113,15 +121,38 @@ async def callback(
 
     display_name = (claims.get("name") or email)[:MAX_DISPLAY_NAME_LENGTH]
     user = find_or_create_user(db, sub=sub, email=email, display_name=display_name)
+    return start_session(request, db, settings, user, safe_next(request.session.pop("next", "/")))
 
+
+def start_session(
+    request: Request, db: Session, settings: Settings, user: User, next_path: str
+) -> Response:
+    """Shared by every way of signing in, so all of them get the same cookie and session rules."""
     old_token = request.cookies.get(COOKIE_NAME)
     if old_token:  # always issue a fresh token on sign-in
         end_session(db, old_token)
     token = create_session(db, user, settings)
-
-    response = RedirectResponse(ui + safe_next(request.session.pop("next", "/")), status_code=303)
+    response = RedirectResponse(settings.ui_url.rstrip("/") + next_path, status_code=303)
     set_session_cookie(response, token, settings)
     return response
+
+
+@router.post("/auth/dev-login")
+def dev_login(
+    request: Request,
+    db: DbSession,
+    settings: AppSettings,
+    persona: Annotated[str, Form()] = "alex",
+) -> Response:
+    """Sign in a fixed synthetic person on a developer's own machine only (ADR-0037)."""
+    # 404, not 403: when this is off, the route should look like it does not exist.
+    if not settings.dev_login or request.url.hostname not in LOCAL_HOSTS:
+        raise HTTPException(status_code=404, detail="Not found")
+    if persona not in DEV_PEOPLE:
+        raise HTTPException(status_code=422, detail="Unknown test person")
+    sub, email, name = DEV_PEOPLE[persona]
+    user = find_or_create_user(db, sub=sub, email=email, display_name=name)
+    return start_session(request, db, settings, user, "/")
 
 
 @router.post("/auth/logout")

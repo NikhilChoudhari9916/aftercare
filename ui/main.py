@@ -1,45 +1,47 @@
 import os
-from html import escape
-from pathlib import Path
 from urllib.parse import urlsplit
 
-from dotenv import load_dotenv
 from fastapi import Request
 from nicegui import app, ui
 
-from ui.api_client import COOKIE_NAME, BackendClient, BackendUnavailable
-from ui.content import describe_role, error_message, sign_in_url, sign_out_form
+from ui.api_client import BackendUnavailable
+from ui.content import (
+    describe_role,
+    dev_sign_in_form,
+    error_message,
+    sign_in_url,
+    sign_out_form,
+)
+from ui.layout import (
+    BACKEND_URL,
+    backend,
+    footer,
+    heading,
+    link_button,
+    page_column,
+    session_token,
+    setup_page,
+    show_server_down,
+)
+from ui.pages import confirm, upload  # noqa: F401  (importing registers the pages)
 from ui.security import SecurityHeadersMiddleware
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-
 # ui/ never imports from app/, so it reads the few settings it needs itself.
-BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").rstrip("/")
 UI_URL = os.environ.get("UI_URL", "http://localhost:8080")
 UI_HOST = os.environ.get("UI_HOST", "127.0.0.1")
 UI_PORT = urlsplit(UI_URL).port or 8080
+DEV_LOGIN = os.environ.get("DEV_LOGIN", "").lower() in {"1", "true", "yes"}
 
-backend = BackendClient(BACKEND_URL)
 app.add_middleware(SecurityHeadersMiddleware)
-
-
-def link_button(text: str, url: str, *, outline: bool = False) -> None:
-    props = f'href="{escape(url, quote=True)}" size=lg no-caps unelevated'
-    props += " outline color=primary" if outline else " color=primary"
-    ui.button(text).props(props).classes("w-full min-h-12")
 
 
 @ui.page("/")
 async def home(request: Request, error: str | None = None) -> None:
-    ui.colors(primary="#0f6e56")
+    setup_page()
     try:
-        me = await backend.me(request.cookies.get(COOKIE_NAME))
+        me = await backend.me(session_token(request))
     except BackendUnavailable:
-        with page_column():
-            heading("AfterCare")
-            ui.label("AfterCare can't reach its server right now. Please try again in a moment.")
-            link_button("Try again", "/")
-            footer()
+        show_server_down()
         return
 
     with page_column():
@@ -53,23 +55,22 @@ async def home(request: Request, error: str | None = None) -> None:
             if message:
                 ui.label(message).classes("text-negative text-base").props('role="alert"')
             link_button("Sign in with Google", sign_in_url(BACKEND_URL))
+            if DEV_LOGIN:
+                ui.label("Test sign-in (development only, synthetic people)").classes(
+                    "text-sm text-grey-7"
+                )
+                ui.html(dev_sign_in_form(BACKEND_URL, "alex", "Test patient Alex"), sanitize=False)
+                ui.html(
+                    dev_sign_in_form(BACKEND_URL, "sam", "Second test patient Sam"), sanitize=False
+                )
         else:
             heading(f"Hello, {me.user.display_name}")
             ui.label(describe_role(me)).classes("text-lg")
+            if any(patient.role == "OWNER" for patient in me.patients):
+                link_button("Upload discharge papers", "/upload")
+                link_button("Check what we found", "/confirm", outline=True)
             ui.html(sign_out_form(BACKEND_URL), sanitize=False)
         footer()
-
-
-def page_column() -> ui.column:
-    return ui.column().classes("w-full max-w-md mx-auto px-4 py-8 gap-6 items-stretch")
-
-
-def heading(text: str) -> None:
-    ui.label(text).classes("text-3xl font-medium break-words")
-
-
-def footer() -> None:
-    ui.label("Synthetic data only. Not medical advice.").classes("text-sm text-grey-7")
 
 
 if __name__ in {"__main__", "__mp_main__"}:
