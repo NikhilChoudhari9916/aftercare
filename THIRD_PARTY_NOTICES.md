@@ -43,3 +43,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Inter typeface (web font)
+
+`ui/static/fonts/InterVariable.woff2` is the Inter variable font, version 4.1, copied unmodified from
+https://github.com/rsms/inter (`docs/font-files/InterVariable.woff2` at tag `v4.1`).
+Copyright (c) 2016 The Inter Project Authors. It is distributed under the SIL Open Font License,
+Version 1.1; the full license is in `ui/static/fonts/Inter-LICENSE.txt` and ships with the font.
+It is served from our own server, so no page loads a font from a third party (ADR-0038, ADR-0039).

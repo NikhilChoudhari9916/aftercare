@@ -88,8 +88,18 @@ ROOT = f"""
 }}
 """
 
+# Inter, served from our own server (ui/static/fonts, SIL OFL 1.1). Never from a third party.
+FONT_URL = "/static/fonts/InterVariable.woff2"
+FONT_FACE = f"""
+@font-face {{
+  font-family: "Inter"; src: url("{FONT_URL}") format("woff2");
+  font-weight: 100 900; font-style: normal; font-display: swap;
+}}
+"""
+
 CSS = (
-    ROOT
+    FONT_FACE
+    + ROOT
     + """
 html { background: var(--bg); }
 /* body stays transparent: a body background would paint over the glows behind it */

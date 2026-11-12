@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import Request
@@ -22,6 +23,7 @@ UI_PORT = urlsplit(UI_URL).port or 8080
 DEV_LOGIN = os.environ.get("DEV_LOGIN", "").lower() in {"1", "true", "yes"}
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_static_files("/static", Path(__file__).parent / "static")  # our own font, nothing external
 
 # Little round icons on the badge, like the row of faces in the reference design.
 BADGE_ICONS = (("favorite", "#FFB3A3"), ("medication", "#9FE7CF"), ("event", "#FFD98A"))
