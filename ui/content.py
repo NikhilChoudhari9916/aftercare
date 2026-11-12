@@ -1,3 +1,4 @@
+from datetime import date
 from html import escape
 
 from ui.api_client import Me
@@ -196,3 +197,49 @@ HOW_IT_WORKS = (
         True,
     ),
 )
+
+
+def calendar_url(backend_url: str, patient_id: str, titles: str = "private") -> str:
+    """The calendar file is a plain link: the browser sends its own cookie and saves the file."""
+    return f"{backend_url}/patients/{patient_id}/schedule.ics?titles={titles}"
+
+
+def medicine_title(name: str, dose: str | None) -> str:
+    return f"{name} {dose}" if dose else name
+
+
+def also_called(other_names: list[str]) -> str | None:
+    names = [name for name in other_names if name]
+    return f"Also called {', '.join(names)}" if names else None
+
+
+def end_date_note(end_date: str | None) -> str | None:
+    """ "Until Nov 20" for a fixed course, or nothing."""
+    if not end_date:
+        return None
+    try:
+        day = date.fromisoformat(end_date)
+    except ValueError:
+        return None
+    return f"Until {day.strftime('%b')} {day.day}, {day.year}"
+
+
+def visit_when(when: str, with_whom: str | None) -> str:
+    return f"{when}, with {with_whom}" if with_whom else when
+
+
+SCHEDULE_TIP = (
+    "These times are a suggestion based on your papers. " "You can move them in your calendar app."
+)
+NEEDS_TIMING_NOTE = (
+    "Your papers don't say a clear time of day for these. "
+    "They are shown as written. Please choose a time that works with your care team or pharmacist."
+)
+CALENDAR_REDOWNLOAD = "If you change your papers, download the calendar file again."
+
+
+def clock_label(hhmm: str) -> str:
+    """ "08:00" becomes "8:00 AM"."""
+    hour, minute = (int(part) for part in hhmm.split(":"))
+    suffix = "AM" if hour < 12 else "PM"
+    return f"{hour % 12 or 12}:{minute:02d} {suffix}"

@@ -18,8 +18,14 @@ def _links(me: Me | None) -> list[tuple[str, str]]:
     if me is None:
         return [("How it works", "#how")]
     if any(patient.role == "OWNER" for patient in me.patients):
-        return [("Home", "/"), ("Upload", "/upload"), ("Review", "/confirm")]
-    return [("Home", "/")]
+        return [
+            ("Home", "/"),
+            ("Upload", "/upload"),
+            ("Review", "/confirm"),
+            ("Summary", "/summary"),
+            ("Schedule", "/schedule"),
+        ]
+    return [("Home", "/"), ("Summary", "/summary"), ("Schedule", "/schedule")]
 
 
 def _nav(me: Me | None, active: str) -> None:

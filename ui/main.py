@@ -12,7 +12,12 @@ from ui.components.basics import alert, button, chip, icon_bubble
 from ui.components.shell import app_shell
 from ui.content import HOW_IT_WORKS, describe_role, dev_sign_in_form, error_message, sign_in_url
 from ui.layout import show_server_down
-from ui.pages import confirm, upload  # noqa: F401  (importing registers the pages)
+from ui.pages import (  # noqa: F401  (importing registers the pages)
+    confirm,
+    schedule,
+    summary,
+    upload,
+)
 from ui.security import SecurityHeadersMiddleware
 from ui.theme import apply_theme
 
@@ -24,6 +29,18 @@ DEV_LOGIN = os.environ.get("DEV_LOGIN", "").lower() in {"1", "true", "yes"}
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_static_files("/static", Path(__file__).parent / "static")  # our own font, nothing external
+
+# Open to the patient and to an aide (an aide may read, ADR-0032).
+READ_ACTIONS = (
+    ("article", "Your summary", "Your papers in plain words", "/summary", False),
+    (
+        "event_available",
+        "Your schedule",
+        "Medicines by time, and a calendar file",
+        "/schedule",
+        True,
+    ),
+)
 
 # Little round icons on the badge, like the row of faces in the reference design.
 BADGE_ICONS = (("favorite", "#FFB3A3"), ("medication", "#9FE7CF"), ("event", "#FFD98A"))
@@ -99,9 +116,8 @@ def signed_in(me: Me) -> None:
     with ui.column().classes("gap-2 fade-up"):
         ui.label(f"Hello, {first_name}").classes("ac-title")
         ui.label(describe_role(me)).classes("ac-lead")
-    if not any(patient.role == "OWNER" for patient in me.patients):
-        return
-    actions = (
+    is_owner = any(patient.role == "OWNER" for patient in me.patients)
+    owner_actions = (
         ("upload_file", "Upload your papers", "Start with your discharge PDF", "/upload", False),
         (
             "fact_check",
@@ -111,6 +127,7 @@ def signed_in(me: Me) -> None:
             True,
         ),
     )
+    actions = (*(owner_actions if is_owner else ()), *READ_ACTIONS)
     for index, (icon, title, text, target, warm) in enumerate(actions):
         with (
             ui.link(target=target)

@@ -3,18 +3,24 @@ import pytest
 from ui.api_client import Me, PatientRef, UserInfo
 from ui.content import (
     GENERIC_SIGN_IN_ERROR,
+    also_called,
     apply_edits,
+    calendar_url,
+    clock_label,
     describe_role,
     dev_sign_in_form,
+    end_date_note,
     error_message,
     injection_warning,
     item_chip,
     item_headline,
     item_lines,
+    medicine_title,
     quote_note,
     sign_in_url,
     sign_out_form,
     step_states,
+    visit_when,
 )
 
 
@@ -176,3 +182,32 @@ def test_the_reading_steps_move_from_pending_to_active_to_done():
     assert step_states("RUNNING", "normalize") == ["done"] * 4
     assert step_states("SUCCEEDED", "done") == ["done"] * 4
     assert step_states("RUNNING", "something_new") == ["active", "pending", "pending", "pending"]
+
+
+def test_clock_times_read_the_way_people_say_them():
+    assert [clock_label(t) for t in ("08:00", "13:00", "18:00", "21:00", "00:30", "12:00")] == [
+        "8:00 AM",
+        "1:00 PM",
+        "6:00 PM",
+        "9:00 PM",
+        "12:30 AM",
+        "12:00 PM",
+    ]
+
+
+def test_the_calendar_link_points_at_the_backend_and_names_the_title_style():
+    base = "http://backend.test/patients/p1/schedule.ics"
+    assert calendar_url("http://backend.test", "p1") == f"{base}?titles=private"
+    assert calendar_url("http://backend.test", "p1", "detailed") == f"{base}?titles=detailed"
+
+
+def test_medicine_lines_are_built_from_what_the_papers_gave():
+    assert medicine_title("furosemide", "40 mg") == "furosemide 40 mg"
+    assert medicine_title("furosemide", None) == "furosemide"
+    assert also_called(["LASIX", ""]) == "Also called LASIX"
+    assert also_called([]) is None
+    assert end_date_note("2026-11-20") == "Until Nov 20, 2026"
+    assert end_date_note(None) is None
+    assert end_date_note("soon") is None
+    assert visit_when("10/20/2026", "Dr. Rivera") == "10/20/2026, with Dr. Rivera"
+    assert visit_when("within 7 days", None) == "within 7 days"
