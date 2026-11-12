@@ -71,7 +71,7 @@ async def upload_page(request: Request) -> None:
         message.set_text("That file is too large. Please choose a PDF under 10 MB.")
         message.set_visibility(True)
 
-    with app_shell(me):
+    with app_shell(me, active="/upload"):
         with ui.column().classes("gap-1 fade-up"):
             ui.label("Upload your papers").classes("ac-title")
             ui.label("Choose the PDF you were given when you left the hospital.").classes("ac-lead")

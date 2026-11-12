@@ -12,13 +12,28 @@ def button(
     icon: str | None = None,
     href: str | None = None,
     on_click: Callable | None = None,
+    arrow: bool | None = None,
+    fit: bool = False,
+    compact: bool = False,
 ) -> ui.button:
-    """kind is "primary", "soft", or "ghost". A button with an href is a real link."""
+    """kind is "primary", "soft", or "ghost". A button with an href is a real link.
+
+    A primary button ends in a round arrow, like the reference design. `fit` sizes it to its
+    words instead of filling the row; `compact` makes it smaller (for the navigation pill)."""
     widget = ui.button(text, icon=icon, color=None, on_click=on_click)
     widget.props("unelevated no-caps")
     if href:
         widget.props(f'href="{href}"')
-    return widget.classes(f"ac-btn ac-btn-{kind}")
+    widget.classes(f"ac-btn ac-btn-{kind}")
+    if fit:
+        widget.classes("ac-fit")
+    if compact:
+        widget.classes("ac-compact")
+    if arrow if arrow is not None else kind == "primary":
+        widget.classes("has-arrow")
+        with widget, ui.element("span").classes("ac-arrow"):
+            ui.icon("arrow_forward").classes("text-lg")
+    return widget
 
 
 def chip(label: str, kind: str = "NEUTRAL", icon: str | None = None) -> ui.element:

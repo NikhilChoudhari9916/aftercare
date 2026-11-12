@@ -50,7 +50,7 @@ async def confirm_page(request: Request) -> None:
 
 
 def show_confirmed(me: Me, draft: Draft) -> None:
-    with app_shell(me):
+    with app_shell(me, active="/confirm"):
         with ui.column().classes("ac-card ac-hero fade-up"):
             success_check()
             ui.label("Your papers are confirmed").classes("ac-title")
@@ -123,9 +123,9 @@ def show_review(me: Me, draft: Draft, patient_id: str, token: str | None) -> Non
                 value=0, min=0, max=total, size="44px", show_value=False, color="primary"
             ).props('track-color="grey-3" thickness=0.22')
             count = ui.label().classes("ac-bar-count").props('role="status"')
-            confirm = button("Confirm", icon="done_all", on_click=submit).style("flex:1")
+            confirm = button("Confirm", on_click=submit).style("flex:1")
 
-    with app_shell(me, bar=True):
+    with app_shell(me, bar=True, active="/confirm"):
         with ui.column().classes("gap-2 fade-up"):
             ui.label("Check what we found").classes("ac-title")
             ui.label(

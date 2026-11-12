@@ -1,6 +1,6 @@
 # ADR-0038: A warm, friendly design system on NiceGUI, with no new libraries
 
-- **Status:** Accepted
+- **Status:** Partly superseded by ADR-0039 (the look; the accessibility and privacy rules still hold)
 - **Date:** 2026-11-11
 - **Deciders:** team
 - **Supersedes:** none (refines how ADR-0010 is styled)

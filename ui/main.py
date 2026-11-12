@@ -6,7 +6,7 @@ from nicegui import app, ui
 
 from ui.api_client import BackendUnavailable, Me
 from ui.backend import BACKEND_URL, backend, session_token
-from ui.components.art import hero_picture
+from ui.components.art import preview_card
 from ui.components.basics import alert, button, chip, icon_bubble
 from ui.components.shell import app_shell
 from ui.content import HOW_IT_WORKS, describe_role, dev_sign_in_form, error_message, sign_in_url
@@ -23,6 +23,9 @@ DEV_LOGIN = os.environ.get("DEV_LOGIN", "").lower() in {"1", "true", "yes"}
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Little round icons on the badge, like the row of faces in the reference design.
+BADGE_ICONS = (("favorite", "#FFB3A3"), ("medication", "#9FE7CF"), ("event", "#FFD98A"))
+
 
 @ui.page("/")
 async def home(request: Request, error: str | None = None) -> None:
@@ -33,7 +36,7 @@ async def home(request: Request, error: str | None = None) -> None:
         show_server_down()
         return
 
-    with app_shell(me):
+    with app_shell(me, wide=me is None, active="/"):
         if me is None:
             signed_out(error)
         else:
@@ -41,43 +44,57 @@ async def home(request: Request, error: str | None = None) -> None:
 
 
 def signed_out(error: str | None) -> None:
-    with ui.column().classes("ac-card ac-hero fade-up"):
-        hero_picture()
-        ui.label("Your hospital papers, in plain words").classes("ac-title")
-        ui.label(
-            "Understand what each medicine is for, when to take it, "
-            "and what to do while you recover at home."
-        ).classes("ac-lead")
-        message = error_message(error)
-        if message:
-            alert(message)
-        button("Sign in with Google", icon="login", href=sign_in_url(BACKEND_URL))
-        if DEV_LOGIN:
-            ui.label("Test sign-in (development only, synthetic people)").classes("ac-small")
-            ui.html(
-                dev_sign_in_form(BACKEND_URL, "alex", "Test patient Alex"), sanitize=False
-            ).classes("w-full")
-            ui.html(
-                dev_sign_in_form(BACKEND_URL, "sam", "Second test patient Sam"), sanitize=False
-            ).classes("w-full")
-    with ui.column().classes("gap-3 w-full"):
-        for index, (icon, title, text, soon) in enumerate(HOW_IT_WORKS):
-            with (
-                ui.row()
-                .classes("ac-card fade-up items-center no-wrap")
-                .style(f"animation-delay:{120 + index * 90}ms; flex-direction:row")
-            ):
-                icon_bubble(icon, warm=index == 1)
-                with ui.column().classes("gap-0"):
-                    ui.label(title).classes("font-bold")
+    with ui.element("section").classes("ac-panel fade-up"):
+        with ui.element("div").classes("ac-panel-copy"):
+            with ui.element("div").classes("ac-badge"):
+                with ui.element("div").classes("ac-avatars"):
+                    for icon, color in BADGE_ICONS:
+                        with ui.element("span").style(f"background:{color}"):
+                            ui.icon(icon).classes("text-base")
+                ui.label("Plain-language help for your first 30 days home")
+            ui.label("Understand your hospital papers, in plain words").classes("ac-title")
+            ui.label(
+                "Upload your discharge papers and check each medicine and detail "
+                "against your own words, step by step."
+            ).classes("ac-lead").style("max-width:32rem")
+            message = error_message(error)
+            if message:
+                alert(message)
+            button("Sign in with Google", href=sign_in_url(BACKEND_URL), fit=True)
+            if DEV_LOGIN:
+                ui.label("Test sign-in (development only, synthetic people)").classes("ac-small")
+                with ui.row().classes("w-full gap-3 no-wrap").style("max-width:30rem"):
+                    for persona, label in (
+                        ("alex", "Test patient Alex"),
+                        ("sam", "Test patient Sam"),
+                    ):
+                        ui.html(
+                            dev_sign_in_form(BACKEND_URL, persona, label), sanitize=False
+                        ).classes("w-full")
+        preview_card()
+
+    with ui.element("section").classes("w-full gap-4 mt-6").props("id=how"):
+        ui.label("How it works").classes("ac-eyebrow")
+        ui.label("Three calm steps").classes("ac-title").style("font-size:clamp(1.8rem,5vw,2.6rem)")
+        with ui.element("div").classes("grid gap-4 w-full sm:grid-cols-3 mt-2"):
+            for index, (icon, title, text, soon) in enumerate(HOW_IT_WORKS):
+                with (
+                    ui.column()
+                    .classes("ac-glass-card fade-up")
+                    .style(f"animation-delay:{index * 90}ms")
+                ):
+                    with ui.row().classes("w-full items-center justify-between"):
+                        icon_bubble(icon, warm=index == 1)
+                        ui.label(f"0{index + 1}").classes("ac-step-number")
+                    ui.label(title).classes("font-bold text-lg")
                     ui.label(text).classes("ac-small")
-                if soon:
-                    chip("Coming soon", "NEUTRAL")
+                    if soon:
+                        chip("Coming soon", "NEUTRAL")
 
 
 def signed_in(me: Me) -> None:
     first_name = me.user.display_name.split(" ")[0]
-    with ui.column().classes("gap-1 fade-up"):
+    with ui.column().classes("gap-2 fade-up"):
         ui.label(f"Hello, {first_name}").classes("ac-title")
         ui.label(describe_role(me)).classes("ac-lead")
     if not any(patient.role == "OWNER" for patient in me.patients):
@@ -98,12 +115,13 @@ def signed_in(me: Me) -> None:
             .classes("ac-action fade-up")
             .style(f"animation-delay:{index * 90}ms")
         ):
-            with ui.row().classes("ac-card no-wrap").style("flex-direction:row"):
+            with ui.row().classes("ac-glass-card no-wrap"):
                 icon_bubble(icon, warm=warm)
                 with ui.column().classes("gap-0 grow"):
                     ui.label(title).classes("font-bold text-lg")
                     ui.label(text).classes("ac-small")
-                ui.icon("chevron_right").classes("text-2xl ac-soft")
+                with ui.element("span").classes("ac-arrow"):
+                    ui.icon("arrow_forward").classes("text-lg")
 
 
 if __name__ in {"__main__", "__mp_main__"}:
