@@ -40,19 +40,21 @@ source .venv/bin/activate
 Then:
 ```bash
 pip install --upgrade pip
-pip install pre-commit ruff pytest
-pip install -r requirements.txt   # once build step 1 has created it
+pip install pre-commit
+pip install -r requirements.txt -r requirements-dev.txt
 pre-commit install
 ```
 
 `pre-commit install` is the important one. It makes the formatting, lint, and secret checks run on every commit.
 
-### 3. Your own API key
+### 3. Your own `.env` and keys
 
 ```bash
-cp .env.example .env              # once build step 1 has created it
+cp .env.example .env
 ```
-Put your own `ANTHROPIC_API_KEY` in `.env`. Never share it, never commit it. `.gitignore` and the secret scanner both guard this, but don't rely on them.
+Fill in your own values. Never share `.env`, never commit it. `.gitignore` and the secret scanner both guard this, but don't rely on them. An `ANTHROPIC_API_KEY` line is added when the AI features arrive (sprint 3).
+
+**Google sign-in test client (needed from sprint 1).** In the Google Cloud Console: create a project, set up the OAuth consent screen as *External* in *Testing* mode and add your own Google email as a test user, then create an *OAuth client ID* of type *Web application* with the redirect URI `http://localhost:8000/auth/callback`. Put the client ID and secret in your `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, and set `LOGIN_STATE_SECRET` to a long random string.
 
 ### 4. Claude Code plugins
 

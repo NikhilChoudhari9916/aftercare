@@ -19,8 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff==0.8.4 pytest  # keep ruff in sync with .pre-commit-config.yaml
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Lint
         run: ruff check .
@@ -29,5 +28,4 @@ jobs:
         run: ruff format --check .
 
       - name: Unit tests (no API key; eval suite excluded)
-        run: |
-          pytest -m "not eval" || [ $? -eq 5 ]  # exit 5 = no tests collected yet
+        run: pytest -m "not eval"

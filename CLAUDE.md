@@ -63,7 +63,8 @@ This is a graduate course project (INFO 7375, Building AI Applications), built b
 | Sign-in | Google OAuth 2.0 / OpenID Connect, identity scopes only. **The backend owns sign-in and the session**: a server-side session behind an `HttpOnly` cookie, with PKCE and a `state` check | The auth library is chosen in the auth pull request and needs team approval first. ADR-0021, ADR-0033 |
 | PDF text | PyMuPDF (`fitz`) | Text layer, page numbers, scan detection |
 | PDF tables | pdfplumber | Medicine lists are often tables |
-| LLM | Anthropic Python SDK (`anthropic`) | One wrapper module; pin exact model IDs in config |
+| Orchestration | LangGraph (`langgraph`) | Two graphs: upload and question (ADR-0035). Nodes are plain functions; safety stays fixed code |
+| LLM | Anthropic Python SDK (`anthropic`) | One wrapper module (`app/llm.py`); pin exact model IDs in config |
 | Models | Sonnet 5.5 (`claude-sonnet-5-5`) for extraction and answers; Haiku 5.5 (`claude-haiku-5-5`) for routing and the safety classifier; Opus 5.5 (`claude-opus-5-5`) only for a task where the eval suite shows Sonnet falling short (ADR-0018) | Read IDs from `.env` through `app/config.py`. Never hard-code them elsewhere |
 | Structured output | Pydantic v2 | Extraction schema and sub-agent result schemas |
 | Database | SQLite + SQLModel | Also holds the long-term memory records (ADR-0029). Move to Postgres later |
@@ -100,7 +101,8 @@ The diagram is in `docs/architecture.md` and the README. Diet and physiotherapy 
 | Schedule agent | Timing questions, calendar offer | `get_schedule`, `export_ics` | No |
 | Summary agent | Re-explain parts of the papers, explain terms in them in plain language, answer diet questions from the paperwork, and build visit prep | `get_confirmed_profile`, `search_patient_document` (includes term definitions), `get_symptom_log`, `get_dose_log`, `get_saved_questions` (all read-only) | No |
 
-- Sub-agents are exposed to the orchestrator as tools, using the Anthropic SDK's tool use, written by hand. Don't add a framework unless asked; LangGraph is a possible later option.
+- **Both workflows run on LangGraph** (`StateGraph`, ADR-0035). Nodes are plain functions; the safety gate and validators are graph nodes the agents cannot call or skip. Tools are described MCP-style (name, description, JSON schema, structured result) in one registry in `app/tools/`. `app/llm.py` stays the only module that imports the Anthropic SDK (no `langchain-anthropic`).
+- The question graph is: `safety_gate` (Tier 1 goes straight to the fixed 911 text) → `load_context` → `router` → specialist ReAct loop → `validators` (fail once: retry with the reason; fail twice: safe fallback) → `finalize`. The assignment slice (ADR-0036) uses BM25 retrieval and short-term session memory only.
 - Sub-agents return a Pydantic-validated `{answer, citations, needs_care_team}`. If any sub-agent sets `needs_care_team`, the merged reply must lead with the care team line.
 - Guardrails:
   - at most 6 tool calls per question,
@@ -198,6 +200,8 @@ aftercare/
 ├── ui/                    # NiceGUI web app (separate process)
 │   ├── main.py            # starts the UI, page routes
 │   ├── api_client.py      # the only file in ui/ that calls the backend
+│   ├── content.py         # plain-language text and small HTML helpers (no NiceGUI, easy to test)
+│   ├── security.py        # security headers for every UI response
 │   ├── pages/             # upload.py, confirm.py, summary.py, schedule.py, ask.py
 │   └── components/        # citation_tag.py, followup_buttons.py, read_aloud.py
 ├── docs/architecture.md   # architecture diagrams (Mermaid)
@@ -209,8 +213,10 @@ aftercare/
 ├── .claude/               # shared Claude Code settings and project skills (committed)
 ├── .github/               # CI workflow and pull request template
 ├── pyproject.toml         # ruff + pytest settings
-├── requirements.txt, .env.example, README.md, CONTRIBUTING.md, TEAM_SETUP.md
+├── requirements.txt, requirements-dev.txt, .env.example, README.md, CONTRIBUTING.md, TEAM_SETUP.md
 ```
+
+This is the **target layout**, not a to-do list: each package and table is created in the sprint that needs it (`docs/roadmap.md`).
 
 Module boundaries (enforced in review):
 - Only `app/llm.py` imports `anthropic`. Only `app/storage.py` touches files under `storage/`.
@@ -221,7 +227,7 @@ Module boundaries (enforced in review):
 
 ## 11. API endpoints
 
-Auth: `GET /auth/login` · `GET /auth/callback` · `POST /auth/logout` · `GET /me`
+Auth: `GET /auth/login?next=/path` · `GET /auth/callback` · `POST /auth/logout` (redirects with 303 to the UI so the browser receives the cookie-clearing response) · `GET /me`
 
 Everything below requires a signed-in user and a role check on the patient (ADR-0032). An **aide** may call only these: the `GET` endpoints for summary, schedule, `.ics`, visit prep, and memory (read), `POST /patients/{id}/ask`, `POST /patients/{id}/doses`, and `GET|POST /patients/{id}/questions`. Every other endpoint is owner-only and returns 403 for an aide.
 

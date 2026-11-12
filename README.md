@@ -6,7 +6,25 @@ Graduate course project (INFO 7375, Building AI Applications). **Synthetic data 
 
 ## Status
 
-Rules, architecture, and team setup are in place. Code starts with build step 1 (`KICKOFF_PROMPT.md`).
+Built so far: the foundation (configuration, database, file storage, health check) and Google sign-in with a phone-friendly login page, all tested. Document upload is next (see [`docs/roadmap.md`](docs/roadmap.md)).
+
+## Run it
+
+You need Python 3.12 (ADR-0019).
+
+```bash
+py -3.12 -m venv .venv                          # Windows; use python3.12 elsewhere
+.venv\Scripts\Activate.ps1                      # Windows PowerShell; use source .venv/bin/activate elsewhere
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env                            # then fill in your own values
+pytest                                          # run the tests
+uvicorn app.main:app --port 8000                # start the backend; try http://localhost:8000/health
+python -m ui.main                               # in a second terminal: the web page at http://localhost:8080
+```
+
+Signing in needs your own Google test client in `.env` (steps in [`TEAM_SETUP.md`](TEAM_SETUP.md)). The page only listens on `127.0.0.1`; set `UI_HOST` to change that.
+
+Never commit `.env`. Lint and format checks are `ruff check .` and `ruff format --check .`.
 
 ## Start here
 
@@ -18,7 +36,6 @@ Rules, architecture, and team setup are in place. Code starts with build step 1 
 | [`docs/roadmap.md`](docs/roadmap.md) | Sprint plan, who does what, and the open design findings |
 | [`docs/architecture.md`](docs/architecture.md) | The two pipelines in detail |
 | [`docs/decisions/`](docs/decisions/README.md) | Every project decision, why it was made, and its history (ADRs) |
-| [`KICKOFF_PROMPT.md`](KICKOFF_PROMPT.md) | The first message to give Claude Code for build step 1 |
 
 ## Architecture at a glance
 
