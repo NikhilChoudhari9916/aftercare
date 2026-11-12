@@ -94,9 +94,8 @@ def validate_plan(profile: ConfirmedProfile, plan: PlanIn, *, today: date) -> Pl
             raise PlanError(f"{name}: each reminder needs a different time.")
         needed = times_needed(medicine)
         if needed is not None and len(times) != needed:
-            raise PlanError(
-                f"{name}: your papers say {needed} time(s) a day, so please pick {needed}."
-            )
+            phrase = "1 time" if needed == 1 else f"{needed} times"
+            raise PlanError(f"{name}: your papers say {phrase} a day, so please pick {needed}.")
         if len(times) > MAX_TIMES_PER_MEDICINE:
             raise PlanError(f"{name}: please pick at most {MAX_TIMES_PER_MEDICINE} times.")
         medicines[entry.item_id] = times
