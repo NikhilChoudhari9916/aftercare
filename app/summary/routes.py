@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from app.auth.dependencies import DbSession, require_access
 from app.models import PatientAccess, Role
 from app.summary.calendar_export import TitleStyle, build_ics
+from app.summary.plan import PlanError, PlanIn, load_plan, save_plan, validate_plan
 from app.summary.profile import ConfirmedProfile, load_confirmed_profile
 from app.summary.schedule import Schedule, build_schedule
 from app.summary.summary import Summary, build_summary
@@ -14,6 +15,8 @@ router = APIRouter()
 
 # An aide may read all three (ADR-0032), so owner and aide are both allowed here.
 Reader = Annotated[PatientAccess, Depends(require_access(Role.OWNER, Role.AIDE))]
+# Only the patient chooses their own reminder times and visit plans.
+OwnerOnly = Annotated[PatientAccess, Depends(require_access(Role.OWNER))]
 
 
 def _confirmed(db: DbSession, patient_id: str) -> ConfirmedProfile:
@@ -30,7 +33,20 @@ def get_summary(patient_id: str, _access: Reader, db: DbSession) -> Summary:
 
 @router.get("/patients/{patient_id}/schedule", response_model=Schedule)
 def get_schedule(patient_id: str, _access: Reader, db: DbSession) -> Schedule:
-    return build_schedule(_confirmed(db, patient_id))
+    profile = _confirmed(db, patient_id)
+    return build_schedule(profile, load_plan(db, patient_id, profile))
+
+
+@router.put("/patients/{patient_id}/plan", response_model=Schedule)
+def put_plan(patient_id: str, plan: PlanIn, _access: OwnerOnly, db: DbSession) -> Schedule:
+    """Save the patient's reminder times and visit plans, all at once (ADR-0042)."""
+    profile = _confirmed(db, patient_id)
+    try:
+        checked = validate_plan(profile, plan, today=date.today())
+    except PlanError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    save_plan(db, patient_id, profile, checked)
+    return build_schedule(profile, checked)
 
 
 @router.get("/patients/{patient_id}/schedule.ics")
@@ -42,7 +58,7 @@ def get_calendar(
 ) -> Response:
     profile = _confirmed(db, patient_id)
     ics = build_ics(
-        build_schedule(profile),
+        build_schedule(profile, load_plan(db, patient_id, profile)),
         patient_id,
         today=date.today(),
         now=datetime.now(UTC),

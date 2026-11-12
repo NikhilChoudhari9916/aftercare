@@ -26,6 +26,10 @@ class ConfirmedProfile(BaseModel):
     follow_ups: list[ExtractedFollowUp]
     care_team: list[ExtractedContact]
     diet_limits: list[ExtractedDietLimit]
+    # The database IDs of the medicines and follow-ups above, in the same order. The patient's
+    # plan (reminder times, visit choices) is attached to these (ADR-0042).
+    medicine_ids: list[str] = []
+    follow_up_ids: list[str] = []
 
 
 def _discharge_date(text: str | None) -> date | None:
@@ -61,6 +65,9 @@ def load_confirmed_profile(db: Session, patient_id: str) -> ConfirmedProfile | N
     def section(name: str) -> list[dict]:
         return [json.loads(item.data) for item in items if item.section == name]
 
+    def ids(name: str) -> list[str]:
+        return [item.id for item in items if item.section == name]
+
     return ConfirmedProfile(
         version_id=version.id,
         version=version.version,
@@ -71,4 +78,6 @@ def load_confirmed_profile(db: Session, patient_id: str) -> ConfirmedProfile | N
         follow_ups=section("follow_ups"),
         care_team=section("care_team"),
         diet_limits=section("diet_limits"),
+        medicine_ids=ids("medicines"),
+        follow_up_ids=ids("follow_ups"),
     )
