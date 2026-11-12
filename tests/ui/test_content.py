@@ -4,6 +4,7 @@ from ui.api_client import Me, PatientRef, UserInfo
 from ui.content import (
     GENERIC_SIGN_IN_ERROR,
     describe_role,
+    dev_sign_in_form,
     error_message,
     sign_in_url,
     sign_out_form,
@@ -61,3 +62,19 @@ def test_the_sign_out_form_escapes_the_address():
     html = sign_out_form('http://x.test/"><script>alert(1)</script>')
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
+
+
+def test_the_test_login_form_posts_the_chosen_person_to_the_backend():
+    html = dev_sign_in_form("http://localhost:8000", "alex", "Test patient Alex")
+
+    assert 'action="http://localhost:8000/auth/dev-login"' in html
+    assert 'name="persona" value="alex"' in html
+    assert "Test patient Alex" in html
+
+
+def test_the_test_login_form_escapes_what_it_is_given():
+    html = dev_sign_in_form('http://x/"><script>', 'a"><b>', "<i>label</i>")
+
+    assert "<script>" not in html
+    assert "<b>" not in html
+    assert "<i>" not in html

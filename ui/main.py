@@ -8,7 +8,13 @@ from fastapi import Request
 from nicegui import app, ui
 
 from ui.api_client import COOKIE_NAME, BackendClient, BackendUnavailable
-from ui.content import describe_role, error_message, sign_in_url, sign_out_form
+from ui.content import (
+    describe_role,
+    dev_sign_in_form,
+    error_message,
+    sign_in_url,
+    sign_out_form,
+)
 from ui.security import SecurityHeadersMiddleware
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -18,6 +24,7 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").rstrip("/")
 UI_URL = os.environ.get("UI_URL", "http://localhost:8080")
 UI_HOST = os.environ.get("UI_HOST", "127.0.0.1")
 UI_PORT = urlsplit(UI_URL).port or 8080
+DEV_LOGIN = os.environ.get("DEV_LOGIN", "").lower() in {"1", "true", "yes"}
 
 backend = BackendClient(BACKEND_URL)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -53,6 +60,14 @@ async def home(request: Request, error: str | None = None) -> None:
             if message:
                 ui.label(message).classes("text-negative text-base").props('role="alert"')
             link_button("Sign in with Google", sign_in_url(BACKEND_URL))
+            if DEV_LOGIN:
+                ui.label("Test sign-in (development only, synthetic people)").classes(
+                    "text-sm text-grey-7"
+                )
+                ui.html(dev_sign_in_form(BACKEND_URL, "alex", "Test patient Alex"), sanitize=False)
+                ui.html(
+                    dev_sign_in_form(BACKEND_URL, "sam", "Second test patient Sam"), sanitize=False
+                )
         else:
             heading(f"Hello, {me.user.display_name}")
             ui.label(describe_role(me)).classes("text-lg")

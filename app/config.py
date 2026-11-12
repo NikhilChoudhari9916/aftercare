@@ -2,11 +2,13 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Self
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, model_validator
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
 class Settings(BaseModel):
@@ -43,6 +45,17 @@ class Settings(BaseModel):
     agent_timeout_seconds: float = 30.0
 
     log_patient_text: bool = False
+    dev_login: bool = False
+
+    @model_validator(mode="after")
+    def _check_dev_login_is_local(self) -> Self:
+        """The test login may only exist on a developer's own machine (ADR-0037)."""
+        if self.dev_login:
+            if self.app_env == "production":
+                raise ValueError("DEV_LOGIN must be off when APP_ENV=production")
+            if urlsplit(self.backend_url).hostname not in LOCAL_HOSTS:
+                raise ValueError("DEV_LOGIN is only allowed when BACKEND_URL is a local address")
+        return self
 
     @model_validator(mode="after")
     def _check_production_safety(self) -> Self:

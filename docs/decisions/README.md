@@ -50,3 +50,4 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0034](0034-in-process-job-runner.md) | Slow work runs as background jobs in an in-process runner | Accepted |
 | [0035](0035-langgraph-orchestration.md) | LangGraph orchestrates the upload and question workflows | Accepted |
 | [0036](0036-assignment-slice.md) | A thin end-to-end slice for the assignment, with deliberate deferrals | Accepted |
+| [0037](0037-dev-only-test-login.md) | A development-only test login until a Google test client exists | Accepted |
