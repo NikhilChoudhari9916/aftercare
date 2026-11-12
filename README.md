@@ -6,7 +6,7 @@ Graduate course project (INFO 7375, Building AI Applications). **Synthetic data 
 
 ## Status
 
-Working end to end on synthetic data: sign-in (Google, plus a development-only test login), upload a discharge PDF, AI reading with source quotes, the confirmation screen, a plain-language summary, a medicine schedule, and a calendar (`.ics`) download. **Not built yet:** the safety gate, cited question answering (agents, tools, retrieval, validators), enrichment from FDA/RxNorm/MedlinePlus, memory and aides. See [`docs/handoff.md`](docs/handoff.md) for the full list and what to pick up next.
+Working end to end on synthetic data: sign-in (Google, plus a development-only test login), upload a discharge PDF, AI reading with source quotes, the confirmation screen, a plain-language summary, a medicine schedule, a calendar (`.ics`) download, and the safety gate (fixed rules plus a classifier; not yet connected to a question screen). **Not built yet:** cited question answering (agents, tools, retrieval, validators), enrichment from FDA/RxNorm/MedlinePlus, memory and aides. See [`docs/handoff.md`](docs/handoff.md) for the full list and what to pick up next.
 
 ## Run it
 

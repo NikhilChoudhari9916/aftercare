@@ -6,7 +6,7 @@ Written 2026-11-12 for the two teammates joining the build. Read [`TEAM_SETUP.md
 
 ## The state in one paragraph
 
-A signed-in patient can upload a discharge PDF, have it read by the AI into a structured profile (every item with an exact quote from the papers), check and confirm each item, and then see a plain-language summary, a medicine schedule, and download a calendar file. **No question can be asked yet.** The safety gate, the tools, retrieval, the validators, the question workflow and the Ask page are the big missing piece and are what the assignment grades most. All of it runs on synthetic data only.
+A signed-in patient can upload a discharge PDF, have it read by the AI into a structured profile (every item with an exact quote from the papers), check and confirm each item, and then see a plain-language summary, a medicine schedule, and download a calendar file. The safety gate is built and tested but **no question can be asked yet**: the tools, retrieval, the validators, the question workflow and the Ask page are the big missing piece and are what the assignment grades most. All of it runs on synthetic data only.
 
 ## Done (merged to `main`, 383 tests passing)
 
@@ -19,6 +19,7 @@ A signed-in patient can upload a discharge PDF, have it read by the AI into a st
 | Anthropic wrapper | The only module that imports the SDK; plain calls, **tool-use calls** (`complete(tools=...)`), structured output, typed errors, no patient text in errors | `app/llm.py` |
 | Confirmation | Draft profile, per-item confirm / edit / remove, nothing used until confirmed | `app/documents/routes.py` |
 | Summary, schedule, calendar | Plain code, confirmed items only, aide may read ([ADR-0040](decisions/0040-summary-schedule-calendar-from-code.md)) | `app/summary/` |
+| Safety gate | `run_gate(question, context, llm=, settings=)`: fixed keyword rules (`data/red_flags.yaml`) plus the patient's own warning signs and medicine names, then a Haiku classifier run 3 times, most severe wins; Tier 1 returns the fixed 911 text and skips the model; any classifier problem counts as Tier 2 ([ADR-0041](decisions/0041-safety-gate-design.md)). Tier 1 recall is 100% on the 31 eval questions by rules alone, and `care_team_line()` builds the Tier 2 lead | `app/safety/`, `tests/safety/` |
 | Web UI | Midnight-glass theme ([ADR-0039](decisions/0039-midnight-glass-theme.md)), self-hosted Inter font, pages: home, upload, confirm, summary, schedule; phone-friendly, accessible (contrast and tap-size tests) | `ui/` |
 | Test helpers | `FakeLLM` (scripted model), `patient1_profile()` (what a good extraction looks like), PDF maker, sign-in helpers | `tests/fakes.py`, `tests/samples.py`, `tests/auth/helpers.py` |
 | Demo without a key | Real backend with a fake model | `scripts/demo_backend.py` |
@@ -30,7 +31,7 @@ Tracks are the ones in `CONTRIBUTING.md` (A documents, B safety and answers, C e
 
 | # | Task | Track | Needs | Done when |
 |---|---|---|---|---|
-| B1 | **Safety gate.** Keyword and phrase rules in `data/red_flags.yaml` plus the patient's own warning signs; a small-model classifier (Haiku, `MODEL_FAST`) run 3 times, most severe wins; Tier 1 returns the fixed 911 text with no model text; classifier error means Tier 2 ([CLAUDE.md section 5](../CLAUDE.md), [ADR-0005](decisions/0005-three-tier-safety-gate.md)) | B | API key for real runs; tests use `FakeLLM` | **Tier 1 recall is 100%** on the eval cases; run the `aftercare-safety-review` skill |
+| B1 | ~~Safety gate~~ **Built** (see Done). **Still to do for B1:** run the classifier on the real model over the eval questions, three runs each, and record Tier 1 recall (must be 100%) and any over-escalation in `prompts/PROMPT_LOG.md` (the safety classifier row says "Pending real run"). Call `run_gate` first in the question workflow (B5) from a worker thread | B | API key | Log row filled in; Tier 1 recall still 100% |
 | B2 | **Tools** in one registry, each with a name, description, JSON schema and structured result: `get_confirmed_medicines`, `get_schedule` (call `build_schedule` in `app/summary/schedule.py`), `search_patient_document`, `search_fda_label`, `lookup_rxnorm`. External calls use `httpx`, timeouts and a cache. **FDA: purpose and warnings only, never dosage** ([ADR-0027](decisions/0027-fda-purpose-and-warnings-only.md)) | B / A | Network for real runs only | Unit tests with mocked HTTP; `app/tools/` |
 | B3 | **Retriever.** Chunk the confirmed papers by section, one table row per chunk; BM25 (`rank_bm25`, ask before pinning the version); every query filtered by `patient_id` in code ([CLAUDE.md section 15](../CLAUDE.md)). FAISS and embeddings come later, behind the same `retriever.py` ([ADR-0028](decisions/0028-hybrid-retrieval-faiss.md)) | B | New package: team approval | **Two-patient leak test passes** before it merges |
 | B4 | **Validators** (plain code): cited IDs were retrieved; doses, times and names match the confirmed profile; no dose-change advice or diagnosis; under about 40 words, about 6th-grade (`textstat` is already installed); Tier 2 includes the care team contact ([section 6](../CLAUDE.md)) | B | none | Unit tests per rule; safety review skill |

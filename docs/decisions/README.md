@@ -54,3 +54,4 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0038](0038-warm-friendly-design-system.md) | A warm, friendly design system on NiceGUI, with no new libraries | Partly superseded by 0039 |
 | [0039](0039-midnight-glass-theme.md) | A dark "midnight glass" theme, replacing the cream palette | Accepted |
 | [0040](0040-summary-schedule-calendar-from-code.md) | The summary, schedule and calendar are built by plain code from the confirmed profile | Accepted |
+| [0041](0041-safety-gate-design.md) | How the safety gate is built | Accepted |
