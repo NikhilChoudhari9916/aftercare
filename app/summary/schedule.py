@@ -196,10 +196,14 @@ def parse_follow_up_date(text: str) -> date | None:
 
 
 def parse_follow_up_time(text: str) -> time | None:
-    """A clock time with a.m. or p.m. Without it the visit becomes an all-day calendar entry."""
-    match = _CLOCK.search(text)
-    if not match:
+    """One clock time with a.m. or p.m. Otherwise the visit becomes an all-day calendar entry.
+
+    Two times ("any time 7 a.m. to 4 p.m.") are a window, not an appointment, so no time is picked.
+    """
+    matches = list(_CLOCK.finditer(text))
+    if len(matches) != 1:
         return None
+    match = matches[0]
     hour, minute = int(match[1]), int(match[2] or 0)
     if not (1 <= hour <= 12 and minute < 60):
         return None

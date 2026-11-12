@@ -123,6 +123,9 @@ def test_follow_up_dates_are_read_only_when_written_out_in_full(text, expected):
         ("12 a.m.", time(0, 0)),
         ("10:30", None),  # no a.m. or p.m., so it stays an all-day entry
         ("on 10/20/2026", None),
+        # A window the lab is open is not an appointment time (found by the first real extraction).
+        ("Monday, 10/19/2026, any time 7 a.m. to 4 p.m.", None),
+        ("10 a.m. or 2 p.m.", None),
     ],
 )
 def test_follow_up_times_need_am_or_pm(text, expected):
