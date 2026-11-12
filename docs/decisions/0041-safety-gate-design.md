@@ -31,7 +31,7 @@ ADR-0005 fixed the shape of the gate: three tiers, keyword rules plus a small cl
 ## Consequences
 
 - Tier 1 recall by rules alone is 100% on the 31 eval questions, and `tests/safety/test_eval_cases.py` fails if that changes. The rules also leave all 18 everyday questions unescalated.
-- Real-model behavior (does Haiku over-escalate? does it agree with the rules?) is **not measured yet**: it needs the eval runner and an API key. Until then the classifier prompt is v1, logged as "pending real run".
+- Real-model behavior was measured on 2026-11-12 (claude-haiku-5-5, 31 eval questions, 3 repeats): Tier 1 recall 4/4, every Tier 2 case exactly Tier 2, and 20 of 21 everyday questions kept at Tier 3. The one over-escalation is P3-L1 (a patient says the hospital stopped lisinopril, with conflicting paperwork); it is logged in `prompts/PROMPT_LOG.md` for the team to decide. The first run showed that a 20-token reply limit sometimes cut off a one-line answer and the run was discarded as a failure, so the limit is 200 tokens. This was a one-off script, not the permanent eval runner (handoff item C2), which should repeat the measurement on every prompt or model change.
 - The question workflow (B5) calls `run_gate` first, uses `fixed_reply` for Tier 1, and uses `care_team_line` from `messages.py` to lead Tier 2 answers.
 - Three calls per question mean the classifier runs in parallel threads; endpoints should call `run_gate` from a worker thread, not directly in an `async` function.
 - Suggested additions for the team to review (not built, because CLAUDE.md names the emergency kinds and a change needs a decision): allergic-reaction signs (swelling of the lips or throat), chest-pain-adjacent wording in other languages.

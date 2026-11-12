@@ -1,7 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings
+from app import config
+from app.config import Settings, get_settings
 
 PRODUCTION_SECRETS = {
     "app_env": "production",
@@ -72,3 +73,20 @@ def test_unknown_environment_name_is_rejected():
 )
 def test_cookies_are_secure_in_production_and_whenever_the_backend_uses_https(values, expected):
     assert Settings(**values).cookies_secure is expected
+
+
+def test_tests_never_read_a_developers_env_file(monkeypatch):
+    """A real key in .env must not reach the tests, where it would call the real API."""
+    loaded = []
+    monkeypatch.setattr(config, "load_dotenv", lambda *args, **kwargs: loaded.append(args))
+    get_settings.cache_clear()
+
+    monkeypatch.setenv("APP_ENV", "test")
+    get_settings()
+    assert loaded == []
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("APP_ENV", "development")
+    get_settings()
+    assert len(loaded) == 1
+    get_settings.cache_clear()

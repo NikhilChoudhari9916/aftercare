@@ -96,5 +96,7 @@ class Settings(BaseModel):
 
 @lru_cache
 def get_settings() -> Settings:
-    load_dotenv(PROJECT_ROOT / ".env")
+    # Tests must never pick up a developer's real keys from .env (they would call the real API).
+    if os.environ.get("APP_ENV") != "test":
+        load_dotenv(PROJECT_ROOT / ".env")
     return Settings.from_env()

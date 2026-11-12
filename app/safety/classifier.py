@@ -17,7 +17,9 @@ from app.safety.context import PatientSafetyContext
 from app.safety.rules import Tier
 
 CLASSIFIER_PROMPT = "safety_classifier_system_prompt_v1.txt"
-MAX_REPLY_TOKENS = 20
+MAX_REPLY_TOKENS = (
+    200  # the reply is one line, but a few extra words must not be cut off and discarded
+)
 NO_WARNING_SIGNS = "(the papers list none)"
 
 logger = logging.getLogger(__name__)
