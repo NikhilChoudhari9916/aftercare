@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 import httpx
 from pydantic import BaseModel
@@ -28,6 +29,62 @@ class PatientRef(BaseModel):
 class Me(BaseModel):
     user: UserInfo
     patients: list[PatientRef]
+
+
+class NotSignedIn(Exception):
+    """No valid session: the page should send the person to sign in."""
+
+
+class Rejected(Exception):
+    """The backend refused the request. The message is already plain language."""
+
+
+class UploadResult(BaseModel):
+    job_id: str
+    document_id: str
+
+
+class JobInfo(BaseModel):
+    status: str
+    step: str | None
+    error_code: str | None
+    message: str | None
+
+
+class DraftItem(BaseModel):
+    id: str
+    section: str
+    data: dict[str, Any]
+    quote_status: str
+    confirmed: bool
+
+
+class InjectionFlag(BaseModel):
+    page: int
+    kind: str
+
+
+class Draft(BaseModel):
+    version_id: str
+    status: str
+    discharge_date: str | None
+    injection_flags: list[InjectionFlag]
+    items: list[DraftItem]
+
+
+GENERIC_REJECTION = "Something went wrong. Please try again."
+UPLOAD_TIMEOUT_SECONDS = 60.0
+
+
+def _rejection_message(response: httpx.Response) -> str:
+    """The backend's own plain-language sentence, or a generic one. Never a status code."""
+    try:
+        detail = response.json().get("detail")
+    except ValueError:
+        return GENERIC_REJECTION
+    if isinstance(detail, dict):
+        detail = detail.get("message")
+    return detail if isinstance(detail, str) else GENERIC_REJECTION
 
 
 class BackendClient:
@@ -66,3 +123,85 @@ class BackendClient:
             return Me.model_validate(response.json())
         except ValueError as error:  # bad JSON or an unexpected shape
             raise BackendUnavailable("unexpected response") from error
+
+    async def _send(
+        self,
+        method: str,
+        path: str,
+        session_token: str | None,
+        *,
+        timeout: float | None = None,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        if not session_token or not TOKEN_PATTERN.match(session_token):
+            raise NotSignedIn
+        try:
+            async with httpx.AsyncClient(
+                base_url=self._base_url, transport=self._transport, timeout=timeout or self._timeout
+            ) as http:
+                response = await http.request(
+                    method, path, headers={"Cookie": f"{COOKIE_NAME}={session_token}"}, **kwargs
+                )
+        except httpx.HTTPError as error:
+            raise BackendUnavailable(type(error).__name__) from error
+        if response.status_code == 401:
+            raise NotSignedIn
+        return response
+
+    @staticmethod
+    def _parse[T: BaseModel](model: type[T], response: httpx.Response) -> T:
+        try:
+            return model.model_validate(response.json())
+        except ValueError as error:
+            raise BackendUnavailable("unexpected response") from error
+
+    async def upload_document(
+        self, session_token: str | None, patient_id: str, filename: str, data: bytes
+    ) -> UploadResult:
+        response = await self._send(
+            "POST",
+            "/documents",
+            session_token,
+            timeout=UPLOAD_TIMEOUT_SECONDS,
+            data={"patient_id": patient_id},
+            files={"file": (filename, data, "application/pdf")},
+        )
+        if response.status_code in (404, 422, 503):
+            raise Rejected(_rejection_message(response))
+        if response.status_code != 202:
+            raise BackendUnavailable(f"status {response.status_code}")
+        return self._parse(UploadResult, response)
+
+    async def get_job(self, session_token: str | None, job_id: str) -> JobInfo:
+        response = await self._send("GET", f"/jobs/{job_id}", session_token)
+        if response.status_code != 200:
+            raise BackendUnavailable(f"status {response.status_code}")
+        return self._parse(JobInfo, response)
+
+    async def get_draft(self, session_token: str | None, patient_id: str) -> Draft | None:
+        """The latest reading of the patient's papers, or None if nothing was uploaded yet."""
+        response = await self._send("GET", f"/patients/{patient_id}/extraction", session_token)
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise BackendUnavailable(f"status {response.status_code}")
+        return self._parse(Draft, response)
+
+    async def confirm_profile(
+        self,
+        session_token: str | None,
+        patient_id: str,
+        version_id: str,
+        decisions: list[dict[str, Any]],
+    ) -> Draft:
+        response = await self._send(
+            "PUT",
+            f"/patients/{patient_id}/profile",
+            session_token,
+            json={"version_id": version_id, "items": decisions},
+        )
+        if response.status_code in (404, 409, 422):
+            raise Rejected(_rejection_message(response))
+        if response.status_code != 200:
+            raise BackendUnavailable(f"status {response.status_code}")
+        return self._parse(Draft, response)
