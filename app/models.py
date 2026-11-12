@@ -142,6 +142,37 @@ class ProfileVersion(SQLModel, table=True):
     confirmed_at: datetime | None = None
 
 
+class VisitStatus(StrEnum):
+    BOOKED = "BOOKED"
+    NOT_BOOKED = "NOT_BOOKED"
+
+
+class MedicinePlan(SQLModel, table=True):
+    """The patient's own reminder times for one confirmed medicine (ADR-0042).
+
+    Their choice, not the papers: the papers' words stay in ProfileItem, untouched.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    patient_id: str = Field(foreign_key="patient.id", index=True)
+    profile_item_id: str = Field(foreign_key="profileitem.id", unique=True, index=True)
+    times: str  # JSON list of "HH:MM", sorted; may be empty ("no reminders")
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class VisitPlan(SQLModel, table=True):
+    """The patient's plan for one confirmed visit: booked, or not booked yet (ADR-0042)."""
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    patient_id: str = Field(foreign_key="patient.id", index=True)
+    profile_item_id: str = Field(foreign_key="profileitem.id", unique=True, index=True)
+    status: VisitStatus
+    planned_date: date | None = None
+    planned_time: str | None = None  # "HH:MM"
+    call_on: date | None = None  # when to be reminded to call and book
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
 class ProfileItem(SQLModel, table=True):
     """One extracted fact. `data` is the JSON of the typed item (see app/extraction/schema.py)."""
 

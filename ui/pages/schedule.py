@@ -4,6 +4,7 @@ from nicegui import ui
 from ui.api_client import BackendUnavailable, MedicineLine, NotSignedIn, Schedule
 from ui.backend import BACKEND_URL, backend, session_token
 from ui.components.basics import alert, button, chip, tip
+from ui.components.plan_form import plan_form
 from ui.components.shell import app_shell
 from ui.content import (
     CALENDAR_REDOWNLOAD,
@@ -15,7 +16,7 @@ from ui.content import (
     clock_label,
     end_date_note,
     medicine_title,
-    visit_when,
+    visit_when_text,
 )
 from ui.layout import show_not_confirmed, show_server_down, signed_in_member
 
@@ -43,6 +44,10 @@ async def schedule_page(request: Request) -> None:
             ui.label("Your medicine schedule").classes("ac-title")
             ui.label("Taken from your confirmed papers.").classes("ac-lead")
         tip(SCHEDULE_TIP)
+        if patient.role == "OWNER":
+            plan_form(schedule, patient.id, session_token(request))
+        else:
+            tip("The patient chooses the reminder times and what to do about each visit.")
         show_schedule(schedule)
         calendar_card(patient.id)
         button("Home", kind="ghost", href="/")
@@ -58,6 +63,7 @@ def medicine_row(line: MedicineLine, *, show_status: bool = False) -> None:
             also_called(line.other_names),
             line.how_often or None,
             end_date_note(line.end_date),
+            "You chose this time" if line.chosen else None,
         ]
         for detail in filter(None, details):
             ui.label(detail).classes("ac-small")
@@ -103,12 +109,18 @@ def show_schedule(schedule: Schedule) -> None:
                 with ui.column().classes("gap-0 w-full"):
                     with ui.row().classes("w-full items-start justify-between no-wrap gap-3"):
                         ui.label(visit.what).classes("font-bold text-lg")
-                        if visit.in_calendar:
+                        if visit.status == "NOT_BOOKED":
+                            chip("Not booked yet", "CHANGED")
+                        elif visit.in_calendar:
                             chip("In your calendar", "NEW")
                         else:
                             chip("Add this one yourself", "CHANGED")
-                    ui.label(visit_when(visit.when, visit.with_whom)).classes("ac-small")
-                    ui.label(f"From your papers, page {visit.source_page}").classes("ac-small")
+                    ui.label(visit_when_text(visit)).classes("ac-small")
+                    ui.label(
+                        "Your choice"
+                        if visit.chosen
+                        else f"From your papers, page {visit.source_page}"
+                    ).classes("ac-small")
 
 
 def calendar_card(patient_id: str) -> None:

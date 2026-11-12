@@ -6,16 +6,20 @@
 - Medicines that are STOPPED or AS NEEDED never get an event, and neither does one whose
   timing the papers do not make clear (the schedule page asks the patient to set it).
 - Each daily reminder runs for the next REMINDER_DAYS days, or until the medicine's end date.
+- Times are the patient's own choices when they have saved a plan (ADR-0042), else the defaults.
+- A visit the patient has not booked yet becomes an all-day "call to book" reminder on the day
+  they chose. The app only reminds; it never books or contacts anyone.
 """
 
 import hashlib
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Literal
 
 from icalendar import Alarm, Calendar, Event, vRecur
 
-from app.summary.schedule import SLOT_NAMES, SLOT_TIMES, FollowUpLine, MedicineLine, Schedule
+from app.models import VisitStatus
+from app.summary.schedule import SLOT_NAMES, FollowUpLine, MedicineLine, Schedule
 
 TitleStyle = Literal["private", "detailed"]
 REMINDER_DAYS = 30
@@ -37,6 +41,10 @@ def _days_left(start: date, end_date: date | None) -> int:
     window_end = start + timedelta(days=REMINDER_DAYS - 1)
     last_day = min(window_end, end_date) if end_date else window_end
     return (last_day - start).days + 1
+
+
+def _clock(hhmm: str) -> time:
+    return datetime.strptime(hhmm, "%H:%M").time()
 
 
 def _alarm() -> Alarm:
@@ -61,9 +69,9 @@ def _medicine_events(
             days = _days_left(start, end_date)
             if days < 1:
                 continue  # the course is already over
-            begin = datetime.combine(start, SLOT_TIMES[dose_time.slot])
+            begin = datetime.combine(start, _clock(dose_time.time))
             event = Event()
-            key = f"{dose_time.slot}:{end_date}"
+            key = f"{dose_time.time}:{end_date}"
             event.add("uid", _uid(patient_id, key))
             event.add("dtstamp", now)
             event.add("dtstart", begin)
@@ -98,7 +106,7 @@ def _follow_up_event(
     event.add("dtstamp", now)
     event.add("sequence", version)
     if follow_up.time:
-        begin = datetime.combine(follow_up.date, datetime.strptime(follow_up.time, "%H:%M").time())
+        begin = datetime.combine(follow_up.date, _clock(follow_up.time))
         event.add("dtstart", begin)
         event.add("dtend", begin + timedelta(minutes=VISIT_MINUTES))
     else:
@@ -107,9 +115,39 @@ def _follow_up_event(
     if titles == "detailed":
         who = f" with {follow_up.with_whom}" if follow_up.with_whom else ""
         event.add("summary", f"{follow_up.what}{who}")
-        event.add("description", f"Your papers say: {follow_up.when}")
+        said = (
+            "You planned this in AfterCare."
+            if follow_up.chosen
+            else f"Your papers say: {follow_up.when}"
+        )
+        event.add("description", said)
     else:
         event.add("summary", "Medical appointment")
+        event.add("description", "Open AfterCare for details.")
+    event.add_component(_alarm())
+    return event
+
+
+def _call_reminder_event(
+    follow_up: FollowUpLine,
+    index: int,
+    patient_id: str,
+    titles: TitleStyle,
+    now: datetime,
+    version: int,
+) -> Event:
+    """An all-day to-do on the day the patient chose: call and book this visit."""
+    event = Event()
+    event.add("uid", _uid(patient_id, f"call:{index}"))
+    event.add("dtstamp", now)
+    event.add("sequence", version)
+    event.add("dtstart", follow_up.call_on)
+    event.add("dtend", follow_up.call_on + timedelta(days=1))
+    if titles == "detailed":
+        event.add("summary", f"Call to book: {follow_up.what}")
+        event.add("description", f"Your papers say: {follow_up.when}")
+    else:
+        event.add("summary", "Call to book an appointment")
         event.add("description", "Open AfterCare for details.")
     event.add_component(_alarm())
     return event
@@ -124,7 +162,10 @@ def build_ics(
     discharge_date: date | None = None,
     titles: TitleStyle = "private",
 ) -> bytes:
-    """Reminders start today, or on the discharge date if that is still ahead."""
+    """Daily reminders start today, or on the discharge date if that is still ahead.
+
+    Visit and call-to-book entries sit on the exact day the papers or the patient gave.
+    """
     start = max(today, discharge_date) if discharge_date else today
     calendar = Calendar()
     calendar.add("prodid", PRODUCT_ID)
@@ -134,7 +175,14 @@ def build_ics(
     for event in _medicine_events(schedule, patient_id, start, titles, now):
         calendar.add_component(event)
     for index, follow_up in enumerate(schedule.follow_ups):
-        if follow_up.date is not None:
+        if follow_up.status == VisitStatus.NOT_BOOKED:
+            if follow_up.call_on is not None:
+                calendar.add_component(
+                    _call_reminder_event(
+                        follow_up, index, patient_id, titles, now, schedule.version
+                    )
+                )
+        elif follow_up.date is not None:
             calendar.add_component(
                 _follow_up_event(follow_up, index, patient_id, titles, now, schedule.version)
             )

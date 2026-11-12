@@ -104,19 +104,18 @@ MEDICINE = {
 }
 
 
-def test_a_medicine_is_headlined_by_name_and_dose_and_described_in_plain_words():
-    assert item_headline("medicines", MEDICINE) == "furosemide 40 mg"
+def test_a_medicine_is_headlined_by_name_and_described_in_plain_words():
+    # The dose and how often get their own big tiles (medicine_facts), not a line of text.
+    assert item_headline("medicines", MEDICINE) == "furosemide"
     assert item_lines("medicines", MEDICINE) == [
-        "once daily",
         "Previously 20 mg.",
         "Last day: 2026-11-01",
     ]
 
 
 def test_a_medicine_without_a_dose_is_headlined_by_name_only():
-    assert (
-        item_headline("medicines", {"name_as_written": "lisinopril", "dose": None}) == "lisinopril"
-    )
+    data = {"name_as_written": "lisinopril", "dose": None}
+    assert item_headline("medicines", data) == "lisinopril"
 
 
 def test_other_sections_read_in_plain_words():

@@ -16,6 +16,9 @@ def confirmed(**changes) -> ConfirmedProfile:
         **extracted.model_dump(exclude={"discharge_date"}),
     }
     fields.update(changes)
+    # IDs that always match the lists, so plan tests can point at "med-0", "visit-0", ...
+    fields.setdefault("medicine_ids", [f"med-{i}" for i in range(len(fields["medicines"]))])
+    fields.setdefault("follow_up_ids", [f"visit-{i}" for i in range(len(fields["follow_ups"]))])
     return ConfirmedProfile(**fields)
 
 
