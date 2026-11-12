@@ -35,6 +35,13 @@ class Settings(BaseModel):
     max_pdf_mb: int = 10
     max_pdf_pages: int = 30
 
+    anthropic_api_key: str = ""
+    llm_timeout_seconds: float = 60.0
+    job_workers: int = 2
+    max_extraction_attempts: int = 2
+    max_tool_calls: int = 6
+    agent_timeout_seconds: float = 30.0
+
     log_patient_text: bool = False
 
     @model_validator(mode="after")
@@ -44,12 +51,22 @@ class Settings(BaseModel):
                 raise ValueError("LOG_PATIENT_TEXT must be off when APP_ENV=production")
             missing = [
                 name.upper()
-                for name in ("google_client_id", "google_client_secret", "login_state_secret")
+                for name in (
+                    "google_client_id",
+                    "google_client_secret",
+                    "login_state_secret",
+                    "anthropic_api_key",
+                )
                 if not getattr(self, name)
             ]
             if missing:
                 raise ValueError(f"Missing required settings in production: {', '.join(missing)}")
         return self
+
+    @property
+    def cookies_secure(self) -> bool:
+        """Secure cookies everywhere except plain-http local development (ADR-0033)."""
+        return self.app_env == "production" or self.backend_url.startswith("https://")
 
     @classmethod
     def from_env(cls) -> Self:

@@ -24,7 +24,7 @@ select = [
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "T20"]   # tests use assert and may print
+"tests/**" = ["S101", "S105", "S106", "T20"]   # tests use assert, fake secrets, and may print
 "ui/**" = ["T20"]
 
 [tool.ruff.format]

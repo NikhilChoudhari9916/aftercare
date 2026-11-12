@@ -7,3 +7,7 @@ httpx==0.28.1
 authlib==1.9.2
 itsdangerous==2.2.0
 nicegui==3.18.0
+langgraph==1.2.20
+anthropic==2.8.0
+pymupdf==2.1
+python-multipart==0.0.33

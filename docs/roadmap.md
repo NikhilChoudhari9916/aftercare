@@ -6,6 +6,8 @@ One-week sprints, three people, three tracks. Every sprint ends with something t
 
 **Right now one person is building.** Onboarding the other two is postponed. Until they join, work through the columns in order (A, then B, then C within each sprint). The table shows what can run in parallel once they do.
 
+**Assignment slice (Nov 11, ADR-0036):** for the course assignment due Nov 15, a thin end-to-end slice (upload to summary, a cited question through a LangGraph workflow with tools, and the schedule) is built first, ahead of the order below. The rows for sprints 2 to 6 describe the full plan, which resumes after the assignment; the slice uses BM25 only, short-term memory only, and a minimal job runner.
+
 **Working agreement:** sprint planning on day 1 (pick issues, one task = one issue = one pull request), a short written standup on working days, a demo and retro on the last day. A task is done when it is merged, its tests pass in CI, and it follows the checklist in the PR template.
 
 ## Sprints
@@ -46,3 +48,16 @@ If time runs short, cut from the bottom: sprints 7 and 8 are the stretch (findin
 | 8 | One `delete_patient()` removes the database rows, PDFs, and index together, with a test | Starts in sprint 2; extended in sprints 4 and 7 |
 
 Other prompts to raise when the time comes: before sprint 2, adding `requirements.txt` needs the team's approval of each new package (`CLAUDE.md` section 16); before sprint 4, approve `faiss-cpu` and `sentence-transformers` and pick the embedding model; before sprint 6, the prompt v8 change goes through `aftercare-prompt-change`.
+
+## Findings from the sign-in security review (sprint 1), and when to raise them
+
+No critical or high findings. Two low findings were fixed in the same pull request (cookies are `Secure` whenever the backend uses HTTPS, and the display name is capped at 200 characters). Still open:
+
+| Finding | Severity | Raise it in |
+|---|---|---|
+| ~~Security headers on the UI pages~~ **Done in sprint 1, PR 3** (no framing, no sniffing, referrer policy, no caching of pages). Standing rule: never render a user's display name with unsanitized HTML | Low | Done |
+| Denied-access events can be spammed by a signed-in user, which grows the table; collapse or rate-limit them | Low | Sprint 2, before patient endpoints |
+| Anyone with a Google account can sign up once the consent screen leaves Testing mode; add per-user upload quotas | Low | Sprint 2 |
+| No rate limiting on `/auth/*` | Low | Before the demo (sprint 9) |
+| No audit event for failed sign-ins | Info | Before the demo (sprint 9) |
+| Authlib keeps the PKCE verifier in a signed but not encrypted login cookie (HttpOnly, Secure over HTTPS, 10-minute life); this is the library's standard design | Info | Revisit if we host publicly |
