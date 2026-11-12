@@ -6,7 +6,7 @@ Graduate course project (INFO 7375, Building AI Applications). **Synthetic data 
 
 ## Status
 
-Built so far: the foundation (configuration, database, file storage, health check) and Google sign-in with a phone-friendly login page, all tested. Document upload is next (see [`docs/roadmap.md`](docs/roadmap.md)).
+Working end to end on synthetic data: sign-in (Google, plus a development-only test login), upload a discharge PDF, AI reading with source quotes, the confirmation screen, a plain-language summary, a medicine schedule, and a calendar (`.ics`) download. **Not built yet:** the safety gate, cited question answering (agents, tools, retrieval, validators), enrichment from FDA/RxNorm/MedlinePlus, memory and aides. See [`docs/handoff.md`](docs/handoff.md) for the full list and what to pick up next.
 
 ## Run it
 
@@ -22,7 +22,7 @@ uvicorn app.main:app --port 8000                # start the backend; try http://
 python -m ui.main                               # in a second terminal: the web page at http://localhost:8080
 ```
 
-Signing in needs your own Google test client in `.env` (steps in [`TEAM_SETUP.md`](TEAM_SETUP.md)). The page only listens on `127.0.0.1`; set `UI_HOST` to change that.
+No API key? `python scripts/demo_backend.py` runs the backend with a scripted fake model, and `DEV_LOGIN=1` in `.env` gives test sign-in buttons. Real Google sign-in needs your own Google test client in `.env`. Steps for all of this are in [`TEAM_SETUP.md`](TEAM_SETUP.md). The page only listens on `127.0.0.1`; set `UI_HOST` to change that.
 
 Never commit `.env`. Lint and format checks are `ruff check .` and `ruff format --check .`.
 
@@ -31,6 +31,7 @@ Never commit `.env`. Lint and format checks are `ruff check .` and `ruff format 
 | File | What it is |
 |------|------------|
 | [`TEAM_SETUP.md`](TEAM_SETUP.md) | Get your machine ready (about 15 minutes) |
+| [`docs/handoff.md`](docs/handoff.md) | What is done, what is not, and what to pick up next |
 | [`CLAUDE.md`](CLAUDE.md) | Scope, architecture, safety design, storage, coding rules (sections 1–19) |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Branches, commits, pull requests, reviews, who owns what |
 | [`docs/roadmap.md`](docs/roadmap.md) | Sprint plan, who does what, and the open design findings |

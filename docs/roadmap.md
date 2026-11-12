@@ -4,7 +4,7 @@ One-week sprints, three people, three tracks. Every sprint ends with something t
 
 **Tracks** (see `CONTRIBUTING.md`): **A** Documents (ingestion, extraction, enrichment, storage), **B** Safety and answers (gate, retrieval, agents, validators), **C** Experience and testing (NiceGUI, summary, schedule, eval runner).
 
-**Right now one person is building.** Onboarding the other two is postponed. Until they join, work through the columns in order (A, then B, then C within each sprint). The table shows what can run in parallel once they do.
+**Status and next tasks for the two joining teammates are in [`handoff.md`](handoff.md).** Until now one person has been building, working through the columns in order (A, then B, then C within each sprint). With three people the table shows what can run in parallel.
 
 **Assignment slice (Nov 11, ADR-0036):** for the course assignment due Nov 15, a thin end-to-end slice (upload to summary, a cited question through a LangGraph workflow with tools, and the schedule) is built first, ahead of the order below. The rows for sprints 2 to 6 describe the full plan, which resumes after the assignment; the slice uses BM25 only, short-term memory only, and a minimal job runner.
 
