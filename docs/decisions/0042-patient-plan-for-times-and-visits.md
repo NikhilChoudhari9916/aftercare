@@ -29,7 +29,12 @@ The first confirmation screen treated everything alike: a "Looks right / Remove 
 - **Reminders are calendar entries** in the downloaded `.ics` file ("Call to book: Primary care follow-up" on the chosen day, all day). The app does not send notifications, emails or messages.
 - **No plan, no change.** Until the patient saves a plan, the schedule and calendar behave exactly as before (ADR-0040), using defaults and the papers' own dates.
 - **The plan belongs to one confirmed version.** If the patient uploads and confirms new papers, the old plan no longer applies and they plan again. Its items have new IDs, and carrying choices across would risk attaching a time to the wrong medicine.
-- **The confirm screen gets stricter for medicines:** the dose and how often are shown large next to the paper's words, an item whose quote could not be found is clearly marked, the time-of-day box is removed (the papers' timing words stay visible, read-only), and a changed dose or frequency is marked "you changed this". Visits there are confirmed only as words; planning is the next step on the Schedule page.
+- **The confirm screen gets stricter for medicines:**
+  - The dose and how often are shown in large tiles next to the paper's words. A missing one shows "Not found" in red (a stopped medicine's missing schedule is not a gap).
+  - An item whose quote could not be found gets an outline, a "Check this one" label, and a count at the top of the screen.
+  - Editing is framed as "This doesn't match my papers", with a warning to change something only if the papers say something different, and a "You changed this" label appears while a value differs from what was read.
+  - The *choice* of when to take a medicine is no longer on this card. The papers' own timing words can still be corrected there (an AI misreading of the paper is a verification error), under a label that says so.
+  - Visits are confirmed as words only; planning is the next step on the Schedule page, which the "confirmed" screen leads to.
 
 ## Alternatives considered
 
