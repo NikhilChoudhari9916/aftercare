@@ -8,7 +8,8 @@ from ui.api_client import COOKIE_NAME, BackendClient
 
 # ui/ never imports from app/, so it reads the few settings it needs itself. The .env file
 # is loaded here, before anything reads the environment.
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+if os.environ.get("APP_ENV") != "test":  # tests must never pick up a developer's real keys
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").rstrip("/")
 
 backend = BackendClient(BACKEND_URL)

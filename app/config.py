@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+RED_FLAGS_FILE = PROJECT_ROOT / "data" / "red_flags.yaml"
 
 
 class Settings(BaseModel):
@@ -43,6 +44,8 @@ class Settings(BaseModel):
     max_extraction_attempts: int = 2
     max_tool_calls: int = 6
     agent_timeout_seconds: float = 30.0
+    classifier_runs: int = 3  # ADR-0005: run the safety classifier 3 times, take the most severe
+    classifier_timeout_seconds: float = 10.0
 
     log_patient_text: bool = False
     dev_login: bool = False
@@ -93,5 +96,7 @@ class Settings(BaseModel):
 
 @lru_cache
 def get_settings() -> Settings:
-    load_dotenv(PROJECT_ROOT / ".env")
+    # Tests must never pick up a developer's real keys from .env (they would call the real API).
+    if os.environ.get("APP_ENV") != "test":
+        load_dotenv(PROJECT_ROOT / ".env")
     return Settings.from_env()
