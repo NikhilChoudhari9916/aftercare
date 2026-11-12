@@ -266,7 +266,7 @@ a.ac-action .ac-arrow { background: var(--white); color: var(--bg); margin-left:
 .ac-card :focus-visible, .ac-bar :focus-visible, .q-menu :focus-visible { outline-color: var(--primary); }
 
 /* Chips, notes and quotes */
-.ac-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 12px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; line-height: 1.5; width: fit-content; }
+.ac-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 12px; border-radius: 999px; font-weight: 700; font-size: 0.85rem; line-height: 1.5; width: fit-content; flex: none; white-space: nowrap; }
 .ac-alert { background: var(--danger-soft); color: var(--danger-ink); border-radius: 16px; padding: 12px 14px; font-weight: 600; width: 100%; }
 .ac-tip { background: rgba(110, 231, 194, 0.12); color: #DFF7EE; border: 1px solid rgba(110, 231, 194, 0.30); border-radius: 16px; padding: 12px 14px; width: 100%; }
 .ac-card .ac-tip { background: var(--primary-soft); color: var(--primary-dark); border-color: transparent; }

@@ -38,3 +38,33 @@ async def signed_in_owner(request: Request) -> tuple[Me, PatientRef] | None:
                 button("Back to home", kind="ghost", href="/")
         return None
     return me, owner
+
+
+async def signed_in_member(request: Request) -> tuple[Me, PatientRef] | None:
+    """Like signed_in_owner, but an aide is welcome too: they may read the summary and schedule."""
+    apply_theme()
+    try:
+        me = await backend.me(session_token(request))
+    except BackendUnavailable:
+        show_server_down()
+        return None
+    if me is None or not me.patients:
+        ui.navigate.to("/")
+        return None
+    patient = next((p for p in me.patients if p.role == "OWNER"), me.patients[0])
+    return me, patient
+
+
+def show_not_confirmed(me: Me, patient: PatientRef, active: str) -> None:
+    """Shown instead of the summary or schedule while nothing has been confirmed."""
+    with app_shell(me, active=active):
+        with ui.column().classes("ac-card ac-hero"):
+            ui.label("Your papers aren't confirmed yet").classes("ac-h2")
+            if patient.role == "OWNER":
+                ui.label("Check each item AfterCare found, and this page will fill in.").classes(
+                    "ac-lead"
+                )
+                button("Check what we found", href="/confirm")
+            else:
+                ui.label("The patient needs to confirm their papers first.").classes("ac-lead")
+                button("Back to home", kind="ghost", href="/")

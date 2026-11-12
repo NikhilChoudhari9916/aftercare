@@ -13,13 +13,29 @@ def test_nobody_signed_in_sees_only_the_how_it_works_link():
     assert _links(None) == [("How it works", "#how")]
 
 
-def test_a_patient_gets_home_upload_and_review():
-    assert [text for text, _ in _links(person("OWNER"))] == ["Home", "Upload", "Review"]
-    assert [target for _, target in _links(person("OWNER"))] == ["/", "/upload", "/confirm"]
+def test_a_patient_gets_every_page():
+    assert [text for text, _ in _links(person("OWNER"))] == [
+        "Home",
+        "Upload",
+        "Review",
+        "Summary",
+        "Schedule",
+    ]
+    assert [target for _, target in _links(person("OWNER"))] == [
+        "/",
+        "/upload",
+        "/confirm",
+        "/summary",
+        "/schedule",
+    ]
 
 
-def test_an_aide_never_sees_the_owner_only_pages():
-    assert _links(person("AIDE")) == [("Home", "/")]
+def test_an_aide_sees_only_the_pages_an_aide_may_read():
+    assert _links(person("AIDE")) == [
+        ("Home", "/"),
+        ("Summary", "/summary"),
+        ("Schedule", "/schedule"),
+    ]
 
 
 def test_the_avatar_shows_the_first_letter_in_capitals():

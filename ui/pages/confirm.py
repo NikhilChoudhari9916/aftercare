@@ -58,7 +58,8 @@ def show_confirmed(me: Me, draft: Draft) -> None:
                 f"You confirmed {len(draft.items)} items. "
                 "Only confirmed items are ever used to answer your questions."
             ).classes("ac-lead")
-            tip("Your summary and medicine schedule are coming next.")
+        button("See your summary", href="/summary")
+        button("See your medicine schedule", kind="soft", href="/schedule", icon="event_available")
         button("Upload different papers", kind="ghost", href="/upload")
         button("Home", kind="ghost", href="/")
 

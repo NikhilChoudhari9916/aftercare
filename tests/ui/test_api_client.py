@@ -231,3 +231,77 @@ def test_a_down_or_confusing_backend_is_unavailable_not_a_crash():
         run(client_with(lambda r: httpx.Response(200, json={"nope": 1})).get_job(TOKEN, "j1"))
     with pytest.raises(BackendUnavailable):
         run(client_with(lambda r: httpx.Response(500)).upload_document(TOKEN, "p1", "a.pdf", b"x"))
+
+
+SUMMARY = {
+    "version": 1,
+    "intro": "This is what your papers say.",
+    "sections": [
+        {
+            "key": "medicines",
+            "title": "Your medicines",
+            "lines": [{"text": "Your papers list lisinopril.", "source_page": 1}],
+        }
+    ],
+}
+SCHEDULE = {
+    "version": 1,
+    "daily": [
+        {
+            "slot": "MORNING",
+            "label": "Morning",
+            "time": "08:00",
+            "medicines": [
+                {
+                    "name": "lisinopril",
+                    "other_names": [],
+                    "dose": "10 mg",
+                    "how_often": "once daily in the morning",
+                    "status": "CONTINUED",
+                    "end_date": None,
+                    "source_page": 1,
+                }
+            ],
+        }
+    ],
+    "needs_timing": [],
+    "as_needed": [],
+    "stopped": [],
+    "follow_ups": [],
+}
+
+
+def test_the_summary_and_schedule_are_read_from_the_confirmed_profile():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path)
+        body = SUMMARY if request.url.path.endswith("/summary") else SCHEDULE
+        return httpx.Response(200, json=body)
+
+    client = client_with(handler)
+    summary = asyncio.run(client.get_summary(TOKEN, "p1"))
+    schedule = asyncio.run(client.get_schedule(TOKEN, "p1"))
+
+    assert summary.sections[0].lines[0].source_page == 1
+    assert schedule.daily[0].medicines[0].name == "lisinopril"
+    assert seen == ["/patients/p1/summary", "/patients/p1/schedule"]
+
+
+def test_nothing_confirmed_yet_is_none_not_an_error():
+    client = client_with(lambda request: httpx.Response(404, json={"detail": "Not confirmed"}))
+    assert asyncio.run(client.get_summary(TOKEN, "p1")) is None
+    assert asyncio.run(client.get_schedule(TOKEN, "p1")) is None
+
+
+def test_a_missing_session_or_a_down_backend_is_handled_for_the_new_pages():
+    with pytest.raises(NotSignedIn):
+        asyncio.run(client_with(lambda r: httpx.Response(200)).get_summary(None, "p1"))
+    with pytest.raises(NotSignedIn):
+        asyncio.run(client_with(lambda r: httpx.Response(401)).get_schedule(TOKEN, "p1"))
+    with pytest.raises(BackendUnavailable):
+        asyncio.run(client_with(lambda r: httpx.Response(500)).get_schedule(TOKEN, "p1"))
+    with pytest.raises(BackendUnavailable):
+        asyncio.run(
+            client_with(lambda r: httpx.Response(200, json={"x": 1})).get_summary(TOKEN, "p1")
+        )

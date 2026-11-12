@@ -76,6 +76,59 @@ GENERIC_REJECTION = "Something went wrong. Please try again."
 UPLOAD_TIMEOUT_SECONDS = 60.0
 
 
+class SummaryLine(BaseModel):
+    text: str
+    source_page: int | None = None
+
+
+class SummarySection(BaseModel):
+    key: str
+    title: str
+    lines: list[SummaryLine]
+
+
+class Summary(BaseModel):
+    version: int
+    intro: str
+    sections: list[SummarySection]
+
+
+class MedicineLine(BaseModel):
+    name: str
+    other_names: list[str]
+    dose: str | None
+    how_often: str
+    status: str
+    end_date: str | None
+    source_page: int
+
+
+class DoseTime(BaseModel):
+    slot: str
+    label: str
+    time: str
+    medicines: list[MedicineLine]
+
+
+class FollowUpLine(BaseModel):
+    what: str
+    when: str
+    with_whom: str | None
+    date: str | None
+    time: str | None
+    in_calendar: bool
+    source_page: int
+
+
+class Schedule(BaseModel):
+    version: int
+    daily: list[DoseTime]
+    needs_timing: list[MedicineLine]
+    as_needed: list[MedicineLine]
+    stopped: list[MedicineLine]
+    follow_ups: list[FollowUpLine]
+
+
 def _rejection_message(response: httpx.Response) -> str:
     """The backend's own plain-language sentence, or a generic one. Never a status code."""
     try:
@@ -205,3 +258,22 @@ class BackendClient:
         if response.status_code != 200:
             raise BackendUnavailable(f"status {response.status_code}")
         return self._parse(Draft, response)
+
+    async def _get_confirmed[T: BaseModel](
+        self, model: type[T], session_token: str | None, path: str
+    ) -> T | None:
+        """A page built from the confirmed profile, or None while nothing is confirmed yet."""
+        response = await self._send("GET", path, session_token)
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise BackendUnavailable(f"status {response.status_code}")
+        return self._parse(model, response)
+
+    async def get_summary(self, session_token: str | None, patient_id: str) -> Summary | None:
+        return await self._get_confirmed(Summary, session_token, f"/patients/{patient_id}/summary")
+
+    async def get_schedule(self, session_token: str | None, patient_id: str) -> Schedule | None:
+        return await self._get_confirmed(
+            Schedule, session_token, f"/patients/{patient_id}/schedule"
+        )
