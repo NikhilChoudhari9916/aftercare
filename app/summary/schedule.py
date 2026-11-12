@@ -11,6 +11,8 @@ from enum import StrEnum
 from pydantic import BaseModel
 
 from app.extraction.schema import ExtractedFollowUp, ExtractedMedication, MedStatus
+from app.models import VisitStatus
+from app.summary.choices import Day, Plan, VisitChoice
 from app.summary.profile import ConfirmedProfile
 
 
@@ -35,6 +37,19 @@ SLOT_NAMES: dict[Slot, str] = {
     Slot.BEDTIME: "Bedtime",
 }
 SLOT_ORDER = tuple(SLOT_NAMES)
+# The hour from which a time reads as midday, evening or bedtime (before MORNING_FROM: bedtime).
+MIDDAY_FROM, EVENING_FROM, BEDTIME_FROM, MORNING_FROM = 12, 16, 20, 5
+
+
+def part_of_day(hhmm: str) -> Slot:
+    """Name for a clock time, so "07:30" and "08:00" both read as Morning."""
+    hour = int(hhmm.split(":")[0])
+    if hour >= BEDTIME_FROM or hour < MORNING_FROM:
+        return Slot.BEDTIME
+    if hour >= EVENING_FROM:
+        return Slot.EVENING
+    return Slot.MIDDAY if hour >= MIDDAY_FROM else Slot.MORNING
+
 
 # Words in a frequency that mean "not every day": never turned into a daily reminder.
 _NOT_DAILY = re.compile(
@@ -89,6 +104,14 @@ class MedicineLine(BaseModel):
     status: MedStatus
     end_date: date | None
     source_page: int
+    # For the planning form (ADR-0042): the times in effect are the patient's, else a default.
+    item_id: str = ""
+    times: list[str] = []
+    suggested_times: list[str] = []
+    times_needed: int | None = (
+        None  # how many times the papers clearly ask for; None = patient decides
+    )
+    chosen: bool = False
 
 
 class DoseTime(BaseModel):
@@ -99,11 +122,20 @@ class DoseTime(BaseModel):
 
 
 class FollowUpLine(BaseModel):
+    item_id: str = ""
     what: str
     when: str  # as the papers wrote it
     with_whom: str | None
-    date: date | None
-    time: str | None  # "10:30", only when the papers give a time
+    # What the papers gave: booked_time, date_only, window (two times), or no_date.
+    kind: str
+    papers_date: Day | None
+    papers_time: str | None
+    # What the patient chose (None until they save a plan), and what the calendar will use.
+    status: VisitStatus | None
+    date: Day | None
+    time: str | None  # "10:30"
+    call_on: Day | None
+    chosen: bool
     in_calendar: bool
     source_page: int
 
@@ -112,6 +144,7 @@ class Schedule(BaseModel):
     version: int
     daily: list[DoseTime]
     needs_timing: list[MedicineLine]
+    plan_medicines: list[MedicineLine]  # every medicine the patient can choose reminder times for
     as_needed: list[MedicineLine]
     stopped: list[MedicineLine]
     follow_ups: list[FollowUpLine]
@@ -124,7 +157,7 @@ def _end_date(text: str | None) -> date | None:
         return None
 
 
-def medicine_line(medicine: ExtractedMedication) -> MedicineLine:
+def medicine_line(medicine: ExtractedMedication, item_id: str = "") -> MedicineLine:
     written = " ".join(part for part in (medicine.frequency, medicine.timing) if part)
     return MedicineLine(
         name=medicine.name_as_written,
@@ -134,6 +167,7 @@ def medicine_line(medicine: ExtractedMedication) -> MedicineLine:
         status=medicine.status,
         end_date=_end_date(medicine.end_date),
         source_page=medicine.source_page,
+        item_id=item_id,
     )
 
 
@@ -196,10 +230,14 @@ def parse_follow_up_date(text: str) -> date | None:
 
 
 def parse_follow_up_time(text: str) -> time | None:
-    """A clock time with a.m. or p.m. Without it the visit becomes an all-day calendar entry."""
-    match = _CLOCK.search(text)
-    if not match:
+    """One clock time with a.m. or p.m. Otherwise the visit becomes an all-day calendar entry.
+
+    Two times ("any time 7 a.m. to 4 p.m.") are a window, not an appointment, so no time is picked.
+    """
+    matches = list(_CLOCK.finditer(text))
+    if len(matches) != 1:
         return None
+    match = matches[0]
     hour, minute = int(match[1]), int(match[2] or 0)
     if not (1 <= hour <= 12 and minute < 60):
         return None
@@ -210,16 +248,48 @@ def parse_follow_up_time(text: str) -> time | None:
     return time(hour, minute)
 
 
-def follow_up_line(follow_up: ExtractedFollowUp) -> FollowUpLine:
-    day = parse_follow_up_date(follow_up.when)
-    clock = parse_follow_up_time(follow_up.when) if day else None
+def count_clock_times(text: str) -> int:
+    return len(list(_CLOCK.finditer(text)))
+
+
+def visit_kind(day: date | None, clock_times: int) -> str:
+    if day is None:
+        return "no_date"
+    if clock_times == 1:
+        return "booked_time"
+    return "date_only" if clock_times == 0 else "window"
+
+
+def follow_up_line(
+    follow_up: ExtractedFollowUp, item_id: str = "", choice: VisitChoice | None = None
+) -> FollowUpLine:
+    papers_day = parse_follow_up_date(follow_up.when)
+    papers_clock = parse_follow_up_time(follow_up.when) if papers_day else None
+    papers_time = papers_clock.strftime("%H:%M") if papers_clock else None
+
+    if choice is None:
+        status, day, clock, call_on = None, papers_day, papers_time, None
+        in_calendar = day is not None
+    elif choice.status == VisitStatus.BOOKED:
+        status, day, clock, call_on = choice.status, choice.date, choice.time, None
+        in_calendar = True
+    else:
+        status, day, clock, call_on = choice.status, None, None, choice.call_on
+        in_calendar = call_on is not None
     return FollowUpLine(
+        item_id=item_id,
         what=follow_up.what,
         when=follow_up.when,
         with_whom=follow_up.with_whom,
+        kind=visit_kind(papers_day, count_clock_times(follow_up.when) if papers_day else 0),
+        papers_date=papers_day,
+        papers_time=papers_time,
+        status=status,
         date=day,
-        time=clock.strftime("%H:%M") if clock else None,
-        in_calendar=day is not None,
+        time=clock,
+        call_on=call_on,
+        chosen=choice is not None,
+        in_calendar=in_calendar,
         source_page=follow_up.source_page,
     )
 
@@ -227,40 +297,68 @@ def follow_up_line(follow_up: ExtractedFollowUp) -> FollowUpLine:
 # --- the schedule ------------------------------------------------------------------------
 
 
-def build_schedule(profile: ConfirmedProfile) -> Schedule:
-    by_slot: dict[Slot, list[MedicineLine]] = {slot: [] for slot in SLOT_ORDER}
+def _item_id(ids: list[str], index: int) -> str:
+    return ids[index] if index < len(ids) else ""
+
+
+def build_schedule(profile: ConfirmedProfile, plan: Plan | None = None) -> Schedule:
+    """Doses grouped by their exact time. The patient's chosen times win over the defaults."""
+    plan = plan or Plan()
+    by_time: dict[str, list[MedicineLine]] = {}
     needs_timing: list[MedicineLine] = []
+    plan_medicines: list[MedicineLine] = []
     as_needed: list[MedicineLine] = []
     stopped: list[MedicineLine] = []
 
-    for medicine in profile.medicines:
-        line = medicine_line(medicine)
+    for index, medicine in enumerate(profile.medicines):
+        item_id = _item_id(profile.medicine_ids, index)
+        line = medicine_line(medicine, item_id)
         if medicine.status == MedStatus.STOPPED:
             stopped.append(line)
         elif is_as_needed(medicine):
             as_needed.append(line)
         else:
             slots = parse_slots(medicine.frequency, medicine.timing)
-            if slots is None:
+            suggested = [SLOT_TIMES[slot].strftime("%H:%M") for slot in slots or []]
+            chosen = plan.medicines.get(item_id)
+            times = suggested if chosen is None else chosen
+            line = line.model_copy(
+                update={
+                    "times": times,
+                    "suggested_times": suggested,
+                    "times_needed": len(slots) if slots else None,
+                    "chosen": chosen is not None,
+                }
+            )
+            plan_medicines.append(line)
+            if not times:
                 needs_timing.append(line)
-            for slot in slots or []:
-                by_slot[slot].append(line)
+            for value in times:
+                by_time.setdefault(value, []).append(line)
 
     daily = [
         DoseTime(
-            slot=slot,
-            label=SLOT_NAMES[slot],
-            time=SLOT_TIMES[slot].strftime("%H:%M"),
-            medicines=lines,
+            slot=part_of_day(value),
+            label=SLOT_NAMES[part_of_day(value)],
+            time=value,
+            medicines=by_time[value],
         )
-        for slot, lines in by_slot.items()
-        if lines
+        for value in sorted(by_time)
+    ]
+    follow_ups = [
+        follow_up_line(
+            follow_up,
+            _item_id(profile.follow_up_ids, index),
+            plan.visits.get(_item_id(profile.follow_up_ids, index)),
+        )
+        for index, follow_up in enumerate(profile.follow_ups)
     ]
     return Schedule(
         version=profile.version,
         daily=daily,
         needs_timing=needs_timing,
+        plan_medicines=plan_medicines,
         as_needed=as_needed,
         stopped=stopped,
-        follow_ups=[follow_up_line(follow_up) for follow_up in profile.follow_ups],
+        follow_ups=follow_ups,
     )

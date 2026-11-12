@@ -10,15 +10,24 @@ from ui.components.basics import alert, button, chip, tip
 from ui.components.decision import KEEP, REMOVE, Decision
 from ui.components.shell import app_shell
 from ui.content import (
+    CHANGED_CHIP,
+    CONFIRMED_NEXT,
     EDIT_FIELDS,
+    FLAGGED_CHIP,
+    MEDICINE_FIX_TITLE,
+    MEDICINE_FIX_WARNING,
     SECTION_ORDER,
     SECTION_TITLES,
     SELECT_FIELDS,
+    VISIT_CONFIRM_NOTE,
+    also_called,
     apply_edits,
     injection_warning,
     item_chip,
     item_headline,
     item_lines,
+    medicine_facts,
+    needs_close_look,
     quote_note,
 )
 from ui.layout import show_server_down, signed_in_owner
@@ -58,8 +67,9 @@ def show_confirmed(me: Me, draft: Draft) -> None:
                 f"You confirmed {len(draft.items)} items. "
                 "Only confirmed items are ever used to answer your questions."
             ).classes("ac-lead")
-        button("See your summary", href="/summary")
-        button("See your medicine schedule", kind="soft", href="/schedule", icon="event_available")
+        tip(CONFIRMED_NEXT)
+        button("Set up your reminders", href="/schedule#plan")
+        button("See your summary", kind="soft", href="/summary", icon="article")
         button("Upload different papers", kind="ghost", href="/upload")
         button("Home", kind="ghost", href="/")
 
@@ -135,8 +145,11 @@ def show_review(me: Me, draft: Draft, patient_id: str, token: str | None) -> Non
             ).classes("ac-lead")
         tip(
             "For each item, tap “Looks right” or “Remove”. "
-            "If something is a little off, open “Fix it”."
+            "For medicines, check the dose and how often against the words from your papers."
         )
+        close_look = needs_close_look([item.quote_status for item in draft.items])
+        if close_look:
+            alert(close_look)
         warning = injection_warning([flag.page for flag in draft.injection_flags])
         if warning:
             alert(warning)
@@ -165,18 +178,39 @@ def show_review(me: Me, draft: Draft, patient_id: str, token: str | None) -> Non
     refresh()
 
 
+def fact_tiles(data: dict) -> None:
+    """The dose and how often, large, because a wrong reading of either one is dangerous."""
+    with ui.element("div").classes("ac-facts"):
+        for label, value, missing in medicine_facts(data):
+            with ui.element("div").classes("ac-fact" + (" is-missing" if missing else "")):
+                ui.label(label).classes("ac-fact-label")
+                ui.label(value).classes("ac-fact-value")
+
+
 def item_card(item: DraftItem, index: int, choices: dict, editors: dict, decide) -> None:
     data = item.data
+    is_medicine = item.section == "medicines"
+    flagged = item.quote_status == "not_found"
     with (
         ui.column()
-        .classes("ac-card fade-up")
+        .classes("ac-card fade-up" + (" is-flagged" if flagged else ""))
         .style(f"animation-delay:{min(index, 6) * 60}ms") as card
     ):
         with ui.row().classes("w-full items-start justify-between no-wrap gap-3"):
-            ui.label(item_headline(item.section, data)).classes("font-bold text-xl break-words")
-            status = item_chip(item.section, data)
-            if status:
-                chip(status[0], status[1])
+            with ui.column().classes("gap-0 min-w-0"):
+                ui.label(item_headline(item.section, data)).classes("font-bold text-xl break-words")
+                if is_medicine and (names := also_called(data.get("other_names") or [])):
+                    ui.label(names).classes("ac-small")
+            with ui.column().classes("gap-1 items-end"):
+                status = item_chip(item.section, data)
+                if status:
+                    chip(status[0], status[1])
+                if flagged:
+                    chip(FLAGGED_CHIP, "CHANGED", icon="visibility")
+                changed_chip = chip(CHANGED_CHIP, "CHANGED", icon="edit")
+                changed_chip.set_visibility(False)
+        if is_medicine:
+            fact_tiles(data)
         for line in item_lines(item.section, data):
             ui.label(line)
         with ui.column().classes("ac-quote gap-1"):
@@ -187,17 +221,28 @@ def item_card(item: DraftItem, index: int, choices: dict, editors: dict, decide)
         note = quote_note(item.quote_status)
         if note:
             alert(note)
+        if item.section == "follow_ups":
+            ui.label(VISIT_CONFIRM_NOTE).classes("ac-small")
 
         choices[item.id] = Decision(lambda value, i=item.id, c=card: decide(i, c, value))
 
+        def refresh_changed() -> None:
+            edits = {key: widget.value for key, widget in editors[item.id].items()}
+            changed_chip.set_visibility(apply_edits(data, edits) is not None)
+
         editors[item.id] = {}
-        with ui.expansion("Fix it", icon="edit").classes("ac-fix w-full"):
+        title = MEDICINE_FIX_TITLE if is_medicine else "Fix it"
+        with ui.expansion(title, icon="edit").classes("ac-fix w-full"):
+            if is_medicine:
+                ui.label(MEDICINE_FIX_WARNING).classes("ac-small")
             select = SELECT_FIELDS.get(item.section)
             if select:
                 key, options = select
                 label = "Status" if key == "status" else "What to do"
                 editors[item.id][key] = ui.select(
-                    options, value=data.get(key), label=label
+                    options, value=data.get(key), label=label, on_change=refresh_changed
                 ).classes("w-full")
             for key, label in EDIT_FIELDS[item.section]:
-                editors[item.id][key] = ui.input(label, value=data.get(key) or "").classes("w-full")
+                editors[item.id][key] = ui.input(
+                    label, value=data.get(key) or "", on_change=refresh_changed
+                ).classes("w-full")

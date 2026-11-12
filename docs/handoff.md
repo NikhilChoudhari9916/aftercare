@@ -81,3 +81,13 @@ If time runs short, cut in this order: UI polish, extra platforms in the compari
 - **Branch protection** asks for one review. The repo owner has been merging stacked PRs with the bypass option; with three people, review each other's PRs.
 - `CONTRIBUTING.md` still has `_name_` placeholders for who owns which track. Fill them in at your first sync.
 - Google sign-in with a real test client is optional until the demo. Each person uses their own Google project and keys (see `TEAM_SETUP.md`); never share keys or put them in the repo.
+
+## Reminder planning (ADR-0042), built 2026-11-12
+
+Patients choose their own reminder times and plan their visits; this is kept apart from the papers' words.
+
+- **Where:** backend `app/summary/plan.py`, `choices.py`, tables `MedicinePlan` and `VisitPlan`, `PUT /patients/{id}/plan`; UI `ui/components/plan_form.py` on the Schedule page; the stricter medicine check is in `ui/pages/confirm.py`.
+- **How it behaves:** one form on the Schedule page, one Save. A medicine gets as many times as the papers clearly say (otherwise the patient picks 0 to 6); a visit is "I have a date" (date, optional time) or "Not booked yet" (optional "remind me to call" day). The calendar file follows the choices, and a not-booked visit becomes an all-day "Call to book" reminder. With no saved plan nothing changes. New confirmed papers start with a fresh plan.
+- **Not built (ideas for later):** carry a plan over to new papers when the medicine matches; compute a "be seen by" date from "within 7 days of discharge"; per-patient default times; the question workflow's schedule tool should say "you chose 7:30 AM" for choices and "your papers say" for the papers.
+- **Not tested automatically:** the form itself in a browser (no Playwright yet; it was checked by hand, including at 375 px). The logic behind it is unit tested.
+
