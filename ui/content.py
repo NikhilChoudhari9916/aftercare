@@ -80,7 +80,7 @@ EDIT_FIELDS: dict[str, list[tuple[str, str]]] = {
     "medicines": [
         ("dose", "Dose"),
         ("frequency", "How often"),
-        ("timing", "When (time of day, with food)"),
+        ("timing", "Timing words in your papers (like “with breakfast”)"),
         ("change_note", "What changed"),
         ("end_date", "Last day (YYYY-MM-DD)"),
     ],
@@ -121,7 +121,7 @@ def step_states(status: str, step: str | None) -> list[str]:
 
 def item_headline(section: str, data: dict) -> str:
     if section == "medicines":
-        return " ".join(part for part in (data.get("name_as_written"), data.get("dose")) if part)
+        return data.get("name_as_written", "")  # the dose and how often have their own big tiles
     if section == "follow_ups":
         return data.get("what", "")
     if section == "care_team":
@@ -133,7 +133,7 @@ def item_lines(section: str, data: dict) -> list[str]:
     """The details under an item's headline, in plain words."""
     lines: list[str] = []
     if section == "medicines":
-        lines += [data.get("frequency"), data.get("timing"), data.get("change_note")]
+        lines += [data.get("change_note")]
         if data.get("end_date"):
             lines.append(f"Last day: {data['end_date']}")
     elif section == "follow_ups":
@@ -343,3 +343,43 @@ def visit_when_text(line) -> str:
         text = format_day(line.date)
         return f"{text} at {clock_label(line.time)}" if line.time else f"{text} (all day)"
     return visit_when(line.when, line.with_whom)
+
+
+# --- the stricter check of medicines (ADR-0042) ------------------------------------------
+
+MISSING_FACT = "Not found"
+STOPPED_FACT = "Stopped, no schedule"
+FLAGGED_CHIP = "Check this one"
+CHANGED_CHIP = "You changed this"
+MEDICINE_FIX_TITLE = "This doesn't match my papers"
+MEDICINE_FIX_WARNING = (
+    "Only change this if your papers say something different. "
+    "You will choose your own reminder times next, on your Schedule page."
+)
+VISIT_CONFIRM_NOTE = (
+    "Check the words only. After you confirm, you will choose dates, times and reminders "
+    "for your visits."
+)
+CONFIRMED_NEXT = "Next, choose when you take each medicine and plan your visits."
+
+
+def medicine_facts(data: dict) -> list[tuple[str, str, bool]]:
+    """(label, value, missing) for the two facts a wrong reading makes dangerous."""
+    how_often = " ".join(part for part in (data.get("frequency"), data.get("timing")) if part)
+    dose = data.get("dose") or ""
+    if not how_often and data.get("status") == "STOPPED":
+        # A stopped medicine has no schedule, so a blank here is expected, not a gap.
+        return [("Dose", dose or MISSING_FACT, not dose), ("How often", STOPPED_FACT, False)]
+    return [
+        ("Dose", dose or MISSING_FACT, not dose),
+        ("How often", how_often or MISSING_FACT, not how_often),
+    ]
+
+
+def needs_close_look(quote_statuses: list[str]) -> str | None:
+    """A line for the top of the screen when some items' exact words were not in the papers."""
+    count = sum(1 for status in quote_statuses if status == "not_found")
+    if not count:
+        return None
+    noun = "item needs" if count == 1 else "items need"
+    return f"{count} {noun} a close look. We could not find the exact words in your papers."

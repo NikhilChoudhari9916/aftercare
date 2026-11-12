@@ -72,6 +72,7 @@ TEXT_PAIRS = {
     "warm label on a quote": (CORAL_INK, PEACH),
     "quote text": (INK, PEACH),
     "alert text": (DANGER_INK, DANGER_SOFT),
+    "fact value on a soft tile": (INK, PRIMARY_SOFT),
     "selected keep button": (WHITE, PRIMARY),
     "selected remove button": (WHITE, DANGER),
     **{f"{name.lower()} chip": (fg, bg) for name, (bg, fg) in CHIP_COLORS.items()},
@@ -272,6 +273,14 @@ a.ac-action .ac-arrow { background: var(--white); color: var(--bg); margin-left:
 .ac-card .ac-tip { background: var(--primary-soft); color: var(--primary-dark); border-color: transparent; }
 .ac-quote { background: var(--peach); color: var(--ink); border-left: 4px solid var(--coral); border-radius: 12px; padding: 10px 14px; font-style: italic; width: 100%; }
 .ac-quote-label { font-size: 0.85rem; font-weight: 700; color: var(--coral-ink); }
+.ac-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.ac-fact { background: var(--primary-soft); border-radius: 14px; padding: 10px 14px; min-width: 0; }
+.ac-fact-label { font-size: 0.85rem; font-weight: 700; color: var(--primary-dark); }
+.ac-fact-value { font-size: 1.2rem; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.ac-fact.is-missing { background: var(--danger-soft); }
+.ac-fact.is-missing .ac-fact-label, .ac-fact.is-missing .ac-fact-value { color: var(--danger-ink); }
+.ac-card.is-flagged { box-shadow: 0 0 0 3px var(--coral); }
+@media (max-width: 420px) { .ac-facts { grid-template-columns: 1fr; } }
 
 /* "Looks right" / "Remove" on each item */
 .ac-choice-row { gap: 10px; flex-wrap: nowrap; width: 100%; }
