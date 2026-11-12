@@ -53,3 +53,4 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0037](0037-dev-only-test-login.md) | A development-only test login until a Google test client exists | Accepted |
 | [0038](0038-warm-friendly-design-system.md) | A warm, friendly design system on NiceGUI, with no new libraries | Partly superseded by 0039 |
 | [0039](0039-midnight-glass-theme.md) | A dark "midnight glass" theme, replacing the cream palette | Accepted |
+| [0040](0040-summary-schedule-calendar-from-code.md) | The summary, schedule and calendar are built by plain code from the confirmed profile | Accepted |
