@@ -8,12 +8,13 @@ from ui.content import (
     dev_sign_in_form,
     error_message,
     injection_warning,
+    item_chip,
     item_headline,
     item_lines,
-    job_step_text,
     quote_note,
     sign_in_url,
     sign_out_form,
+    step_states,
 )
 
 
@@ -61,7 +62,7 @@ def test_the_sign_out_form_posts_to_the_backend():
     html = sign_out_form("http://localhost:8000")
     assert 'method="post"' in html
     assert 'action="http://localhost:8000/auth/logout"' in html
-    assert "min-height:48px" in html
+    assert 'class="ac-nbtn"' in html  # its 48px+ tap size comes from theme.CSS (tested there)
 
 
 def test_the_sign_out_form_escapes_the_address():
@@ -100,7 +101,6 @@ MEDICINE = {
 def test_a_medicine_is_headlined_by_name_and_dose_and_described_in_plain_words():
     assert item_headline("medicines", MEDICINE) == "furosemide 40 mg"
     assert item_lines("medicines", MEDICINE) == [
-        "Changed",
         "once daily",
         "Previously 20 mg.",
         "Last day: 2026-11-01",
@@ -117,17 +117,10 @@ def test_other_sections_read_in_plain_words():
     assert item_headline("follow_ups", {"what": "Cardiology visit"}) == "Cardiology visit"
     assert item_headline("care_team", {"name": "Nurse Line"}) == "Nurse Line"
     assert item_headline("diet_limits", {"text": "Limit salt"}) == "Limit salt"
-    assert item_lines("warning_signs", {"text": "x", "tier": "CALL_911"}) == ["Call 911"]
+    assert item_lines("warning_signs", {"text": "x", "tier": "CALL_911"}) == []
     assert item_lines("follow_ups", {"when": "Tuesday", "with_whom": None}) == ["Tuesday"]
     assert item_lines("care_team", {"phone": "555", "hours": "9 to 5"}) == ["555", "9 to 5"]
     assert item_lines("diet_limits", {"text": "Limit salt"}) == []
-
-
-def test_every_job_step_has_words_and_unknown_ones_do_not_break():
-    assert job_step_text("QUEUED", None) == "Waiting to start"
-    assert job_step_text("RUNNING", "extract") == "Finding your medicines and details"
-    assert job_step_text("RUNNING", None) == "Working on it"
-    assert job_step_text("RUNNING", "something_new") == "Working on it"
 
 
 def test_only_words_that_could_not_be_found_get_a_warning():
@@ -158,3 +151,28 @@ def test_a_blank_answer_clears_an_optional_field_but_not_a_required_one():
     follow_up = {"what": "Visit", "when": "Tuesday", "with_whom": "Dr. Rivera"}
     assert apply_edits(follow_up, {"what": ""}) is None
     assert apply_edits(follow_up, {"with_whom": ""})["with_whom"] is None
+
+
+def test_a_medicine_status_and_a_warning_urgency_become_chips_with_words():
+    assert item_chip("medicines", MEDICINE) == ("Changed", "CHANGED")
+    assert item_chip("medicines", {"status": "AS_NEEDED"}) == ("Only when needed", "AS_NEEDED")
+    assert item_chip("warning_signs", {"tier": "CALL_911"}) == ("Call 911", "CALL_911")
+    assert item_chip("warning_signs", {"tier": "CALL_CARE_TEAM"}) == (
+        "Call your care team",
+        "CALL_CARE_TEAM",
+    )
+
+
+def test_other_items_and_unknown_values_get_no_chip():
+    assert item_chip("diet_limits", {"text": "Limit salt"}) is None
+    assert item_chip("medicines", {"status": "SOMETHING_NEW"}) is None
+    assert item_chip("medicines", {}) is None
+
+
+def test_the_reading_steps_move_from_pending_to_active_to_done():
+    assert step_states("QUEUED", None) == ["active", "pending", "pending", "pending"]
+    assert step_states("RUNNING", "ingest") == ["done", "active", "pending", "pending"]
+    assert step_states("RUNNING", "check_quotes") == ["done", "done", "done", "active"]
+    assert step_states("RUNNING", "normalize") == ["done"] * 4
+    assert step_states("SUCCEEDED", "done") == ["done"] * 4
+    assert step_states("RUNNING", "something_new") == ["active", "pending", "pending", "pending"]

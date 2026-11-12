@@ -40,9 +40,7 @@ def dev_sign_in_form(backend_url: str, persona: str, label: str) -> str:
     return (
         f'<form method="post" action="{action}" style="width:100%">'
         f'<input type="hidden" name="persona" value="{escape(persona, quote=True)}">'
-        '<button type="submit" '
-        'style="width:100%;min-height:48px;font-size:1rem;border:1px dashed #888;'
-        'border-radius:4px;background:transparent;color:inherit;cursor:pointer">'
+        '<button type="submit" class="ac-nbtn dashed">'
         f"{escape(label)}</button></form>"
     )
 
@@ -53,9 +51,7 @@ def sign_out_form(backend_url: str) -> str:
     action = escape(f"{backend_url}/auth/logout", quote=True)
     return (
         f'<form method="post" action="{action}" style="width:100%">'
-        '<button type="submit" '
-        'style="width:100%;min-height:48px;font-size:1rem;border:1px solid #888;'
-        'border-radius:4px;background:transparent;color:inherit;cursor:pointer">'
+        '<button type="submit" class="ac-nbtn">'
         "Sign out</button></form>"
     )
 
@@ -98,22 +94,28 @@ SELECT_FIELDS: dict[str, tuple[str, dict[str, str]]] = {
     "warning_signs": ("tier", TIER_WORDS),
 }
 
-JOB_STEP_WORDS = {
-    "ingest": "Reading the pages",
-    "extract": "Finding your medicines and details",
-    "check_quotes": "Checking each item against your papers",
-    "normalize": "Tidying up abbreviations",
-    "done": "Done",
-}
+# The reading steps in the order the backend runs them (the names are the job's step names).
+PROGRESS_STEPS = (
+    ("ingest", "Reading your pages"),
+    ("extract", "Finding your medicines and details"),
+    ("check_quotes", "Checking each item against your papers"),
+    ("normalize", "Tidying up"),
+)
 NOT_FOUND_WARNING = (
     "We could not find these exact words in your papers. Please check this one carefully."
 )
 
 
-def job_step_text(status: str, step: str | None) -> str:
-    if status == "QUEUED":
-        return "Waiting to start"
-    return JOB_STEP_WORDS.get(step or "", "Working on it")
+def step_states(status: str, step: str | None) -> list[str]:
+    """done / active / pending for each reading step. `step` is the last step the job finished."""
+    names = [name for name, _ in PROGRESS_STEPS]
+    if status == "SUCCEEDED" or step == "done":
+        return ["done"] * len(names)
+    finished = names.index(step) + 1 if step in names else 0
+    return [
+        "done" if index < finished else "active" if index == finished else "pending"
+        for index in range(len(names))
+    ]
 
 
 def item_headline(section: str, data: dict) -> str:
@@ -130,17 +132,23 @@ def item_lines(section: str, data: dict) -> list[str]:
     """The details under an item's headline, in plain words."""
     lines: list[str] = []
     if section == "medicines":
-        lines.append(STATUS_WORDS.get(data.get("status", ""), ""))
         lines += [data.get("frequency"), data.get("timing"), data.get("change_note")]
         if data.get("end_date"):
             lines.append(f"Last day: {data['end_date']}")
-    elif section == "warning_signs":
-        lines.append(TIER_WORDS.get(data.get("tier", ""), ""))
     elif section == "follow_ups":
         lines += [data.get("when"), data.get("with_whom")]
     elif section == "care_team":
         lines += [data.get("phone"), data.get("hours")]
     return [line for line in lines if line]
+
+
+def item_chip(section: str, data: dict) -> tuple[str, str] | None:
+    """(words, kind) for the colored chip on an item: a medicine's status or a warning's urgency."""
+    key, words = {"medicines": ("status", STATUS_WORDS), "warning_signs": ("tier", TIER_WORDS)}.get(
+        section, (None, {})
+    )
+    value = data.get(key) if key else None
+    return (words[value], value) if value in words else None
 
 
 def quote_note(quote_status: str) -> str | None:
@@ -170,3 +178,21 @@ def apply_edits(data: dict, edits: dict[str, str]) -> dict | None:
         elif key in OPTIONAL_FIELDS:
             changed[key] = None
     return changed if changed != data else None
+
+
+# (icon, title, text, coming soon?) for the three cards under the sign-in box.
+HOW_IT_WORKS = (
+    ("upload_file", "Upload your papers", "Choose the PDF you were given at the hospital.", False),
+    (
+        "fact_check",
+        "Check what we found",
+        "Confirm each medicine and detail, side by side with your papers.",
+        False,
+    ),
+    (
+        "auto_stories",
+        "Understand and plan",
+        "A plain-language summary, a medicine schedule, and reminders.",
+        True,
+    ),
+)

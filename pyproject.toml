@@ -25,7 +25,7 @@ ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "T20"]   # tests use assert, fake secrets, and may print
-"ui/**" = ["T20"]
+"ui/**" = ["T20", "SIM117"]   # NiceGUI layouts are written as nested `with` blocks
 
 [tool.ruff.format]
 quote-style = "double"
