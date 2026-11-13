@@ -47,6 +47,13 @@ class Settings(BaseModel):
     classifier_runs: int = 3  # ADR-0005: run the safety classifier 3 times, take the most severe
     classifier_timeout_seconds: float = 10.0
 
+    # Public drug-name and drug-label services. Only medicine names are ever sent to them.
+    rxnav_base_url: str = "https://rxnav.nlm.nih.gov/REST"
+    openfda_base_url: str = "https://api.fda.gov"
+    external_timeout_seconds: float = 5.0
+    external_cache_days: int = 7  # CLAUDE.md section 15: refresh weekly
+    label_section_chars: int = 1500  # keeps a tool result short enough to read and cite
+
     log_patient_text: bool = False
     dev_login: bool = False
 
