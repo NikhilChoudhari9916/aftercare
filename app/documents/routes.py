@@ -25,6 +25,7 @@ from app.models import (
     Role,
     utc_now,
 )
+from app.qa.index import index_patient
 from app.storage import save_pdf
 
 router = APIRouter()
@@ -224,4 +225,5 @@ def confirm_profile(
     version.confirmed_at = utc_now()
     db.add(version)
     db.commit()
+    index_patient(db, patient_id)  # make the confirmed papers searchable (CLAUDE.md section 15)
     return _extraction_out(db, version)

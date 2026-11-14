@@ -54,6 +54,11 @@ class Settings(BaseModel):
     external_cache_days: int = 7  # CLAUDE.md section 15: refresh weekly
     label_section_chars: int = 1500  # keeps a tool result short enough to read and cite
 
+    # Embedding search (ADR-0028). The model runs on this machine, so no patient text leaves it.
+    embeddings_enabled: bool = True  # falls back to keywords on its own if the model is missing
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_min_similarity: float = 0.3  # below this a passage is not a meaningful match
+
     log_patient_text: bool = False
     dev_login: bool = False
 
