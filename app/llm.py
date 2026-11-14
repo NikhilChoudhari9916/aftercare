@@ -40,6 +40,9 @@ class LLMResponse:
     stop_reason: str
     # The raw content blocks, sent back unchanged as the assistant turn of the next request.
     content: list[Any]
+    # What the call used, so a run can be costed and capped. Thinking counts as output.
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class LLM(Protocol):
@@ -112,6 +115,8 @@ class AnthropicLLM:
             tool_calls=tool_calls,
             stop_reason=response.stop_reason or "",
             content=list(response.content),
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
         )
 
     def extract(
