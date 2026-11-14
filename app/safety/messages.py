@@ -15,3 +15,10 @@ def care_team_line(name: str | None, phone: str | None, hours: str | None = None
         return NO_CARE_TEAM_LINE
     when = f" ({hours})" if hours else ""
     return f"Please call {name} at {phone}{when}."
+
+
+def safe_fallback(pharmacist_phone: str | None = None) -> str:
+    """What the patient sees when an answer failed its checks twice (CLAUDE.md section 6)."""
+    if not pharmacist_phone:
+        return "I can't answer that safely. Please call your pharmacist."
+    return f"I can't answer that safely. Please call your pharmacist at {pharmacist_phone}."

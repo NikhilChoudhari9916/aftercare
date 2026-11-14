@@ -11,7 +11,7 @@ HW2 (the v4 prompt) was built and tested with ChatGPT. This project uses Claude 
 | Patient's discharge paperwork, per-patient index | Chunked by section, one chunk per medicine row (`CLAUDE.md` section 15); per-patient filter in code (ADR-0028) |
 | RxNorm (brand and generic names) | Enrichment, at upload and when a medicine is named |
 | openFDA labels, purpose and warnings only, never dosing | ADR-0027 |
-| MedlinePlus health topics for terms in the paperwork | ADR-0023; needs prompt v8 and a `[T#]` tag first |
+| MedlinePlus health topics for terms in the paperwork | ADR-0023; needs prompt v9 and a `[T#]` tag first (v8 is the unclear-paperwork rules) |
 | Abbreviation glossary, always in context | `data/abbreviations.yaml` (ADR-0030); code also normalizes abbreviations at upload |
 
 ## Retrieval

@@ -86,6 +86,15 @@ def test_a_text_reply_comes_back_and_the_request_is_shaped_correctly():
     assert "tools" not in body
 
 
+def test_the_reply_says_how_many_tokens_the_call_used():
+    body = {**message([text("Hi.")]), "usage": {"input_tokens": 120, "output_tokens": 45}}
+    recorder = Recorder(httpx2.Response(200, json=body))
+
+    reply = llm_with(recorder).complete(**ASK)
+
+    assert (reply.input_tokens, reply.output_tokens) == (120, 45)
+
+
 def test_tool_calls_are_parsed_and_the_raw_blocks_are_kept_for_the_next_turn():
     blocks = [
         text("Let me check."),

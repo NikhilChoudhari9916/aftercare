@@ -2,6 +2,8 @@
 
 Read this whole file before doing anything. It records decisions already made with the team. Don't reverse them without asking.
 
+**Where the project stands:** read [`docs/handoff.md`](docs/handoff.md) next. It lists what is built, what remains (in build order), the decisions waiting for a teammate, and the known limits. **Answer prompts v7 and v8 have not been run on the real model yet**, and v9 (the `[T#]` tag) is not written: test and validate them with `python -m tests.eval.run_eval` (section 8) before building on them or changing `answer_prompt_version`.
+
 ## 1. What we're building
 
 AfterCare is a **Python web app** that helps **adults (18+) and their caregivers** understand their own hospital discharge papers during the **first 30 days at home**.
@@ -134,7 +136,7 @@ Implementation:
 - Tier 2 answers include the care team contact.
 - On failure: regenerate once with the reason given. On a second failure: the safe fallback ("I can't answer that safely. Please call your pharmacist at …").
 
-## 7. The answer prompt (final version: v7)
+## 7. The answer prompt (current: v7, not yet validated on the real model)
 
 The full system prompt is in `prompts/answer_agent_system_prompt_v7.txt`. It's a **template** with three placeholders that code fills on every call: `{patient_profile}`, `{retrieved_sources}`, and `{user_question}`. Key behaviors, all chosen after testing v1 to v7 with the team:
 - A hidden 5-step workflow inside `<analysis>` tags: safety check → split into parts → find sources → draft → self-check. **Strip `<analysis>` before display and do not store it** (it can contain patient text); keep it only behind the developer flag in ADR-0031.
@@ -148,7 +150,7 @@ The full system prompt is in `prompts/answer_agent_system_prompt_v7.txt`. It's a
 
 In the agentic build, this prompt becomes the **medication agent's** prompt. The orchestrator, schedule, summary, and classifier agents need their own short prompts in `prompts/`.
 
-**Term definitions need a prompt change.** v7 only knows `[D#]` (papers) and `[L#]` (FDA labels). Citing MedlinePlus definitions needs a new source tag, `[T#]` ("From MedlinePlus" in the UI). Add it in a new version (v8) through the `aftercare-prompt-change` skill, with new eval cases for term questions, before the summary agent explains any term (ADR-0023).
+**Term definitions need a prompt change.** v7 only knows `[D#]` (papers) and `[L#]` (FDA labels). Citing MedlinePlus definitions needs a new source tag, `[T#]` ("From MedlinePlus" in the UI). Add it in a new version (v9; v8 holds the unclear-paperwork rules, see `prompts/PROMPT_LOG.md`) through the `aftercare-prompt-change` skill, with new eval cases for term questions, before the summary agent explains any term (ADR-0023).
 
 ## 8. Evaluation (keep it permanent)
 

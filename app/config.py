@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 RED_FLAGS_FILE = PROJECT_ROOT / "data" / "red_flags.yaml"
+PROMPTS_DIR = PROJECT_ROOT / "prompts"
 
 
 class Settings(BaseModel):
@@ -42,6 +43,7 @@ class Settings(BaseModel):
     llm_timeout_seconds: float = 60.0
     job_workers: int = 2
     max_extraction_attempts: int = 2
+    answer_prompt_version: str = "v7"  # prompts/answer_agent_system_prompt_{version}.txt
     max_tool_calls: int = 6
     agent_timeout_seconds: float = 30.0
     classifier_runs: int = 3  # ADR-0005: run the safety classifier 3 times, take the most severe
@@ -58,6 +60,12 @@ class Settings(BaseModel):
     embeddings_enabled: bool = True  # falls back to keywords on its own if the model is missing
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_min_similarity: float = 0.3  # below this a passage is not a meaningful match
+
+    # Answer limits checked after every answer (CLAUDE.md section 6). The prompt asks for under
+    # 40 words at about a 6th-grade level; the limits leave room for how rough `textstat` is on
+    # very short text (the prompt's own example answer scores 7.8).
+    max_answer_words: int = 45
+    max_reading_grade: float = 9.0
 
     log_patient_text: bool = False
     dev_login: bool = False

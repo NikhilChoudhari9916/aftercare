@@ -20,7 +20,7 @@ One-week sprints, three people, three tracks. Every sprint ends with something t
 | 3 | **Extraction on the sample PDF yields 6 medicines, with a confirmation screen** | AI extraction, quote check, abbreviation cleanup; the hidden-instruction scan | Gate wired to the eval cases; eval runner starts | Confirmation screen (side-by-side with the original line); summary screen |
 | 4 | **Enriched profile** | RxNorm, openFDA purpose and warnings, MedlinePlus definitions, cached | Chunking; hybrid retriever behind `retriever.py` (FAISS hidden behind it, finding 5); retrieval test | Upload, status, and confirm pages polished; `.ics` download button |
 | 5 | **Ask a question and get a short cited answer** | Re-index when a profile changes | Medication agent, validators, short-term session memory; two-patient leak test | Ask page: citation tags, follow-up buttons, read-aloud |
-| 6 | **Multi-part questions and diet questions** | Support the orchestrator's tools | Orchestrator, schedule and summary agents; prompt v8 with the `[T#]` tag | Eval runs on all 31 cases; fix failures |
+| 6 | **Multi-part questions and diet questions** | Support the orchestrator's tools | Orchestrator, schedule and summary agents; prompt v9 with the `[T#]` tag | Eval runs on all 31 cases; fix failures |
 | **Core demo** | Sign in, upload, confirm, summary, schedule, cited Q&A, safety gate | | | |
 | 7 | **Visit prep and logs** | Memory records and the 30-day cleanup job | Long-term memory read tools; visit-prep agent | Symptom, dose, and saved-question pages; visit-prep page |
 | 8 | **Aide access** | Invites, `PatientAccess` aide role | Role tests; run `security-reviewer` | Aide banner and access page |
