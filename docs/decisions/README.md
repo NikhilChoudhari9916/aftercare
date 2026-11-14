@@ -56,3 +56,4 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0040](0040-summary-schedule-calendar-from-code.md) | The summary, schedule and calendar are built by plain code from the confirmed profile | Accepted |
 | [0041](0041-safety-gate-design.md) | How the safety gate is built | Accepted |
 | [0042](0042-patient-plan-for-times-and-visits.md) | The patient's own plan for reminder times and visits, kept apart from the papers | Accepted |
+| [0043](0043-retriever-implementation.md) | How the retriever is built, and the embedding model as an optional install | Accepted |

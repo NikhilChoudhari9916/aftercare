@@ -184,3 +184,27 @@ class ProfileItem(SQLModel, table=True):
     data: str
     quote_status: str  # "verified" or "not_found"
     confirmed: bool = False
+
+
+class ChunkSource(StrEnum):
+    DOCUMENT = "DOCUMENT"  # the patient's own papers; cited as [D#]
+    LABEL = "LABEL"  # an FDA label section; cited as [L#] (later)
+    TERM = "TERM"  # a MedlinePlus definition; cited as [T#] (later)
+
+
+class Chunk(SQLModel, table=True):
+    """A piece of the patient's confirmed papers that search can return (CLAUDE.md section 15).
+
+    Rebuilt from scratch each time the patient confirms, so it never holds anything they removed.
+    Holds patient text: it is deleted with the patient and never logged (ADR-0031).
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    patient_id: str = Field(index=True)
+    profile_version_id: str = Field(foreign_key="profileversion.id", index=True)
+    source: ChunkSource
+    ref: str  # what an answer cites, such as "D3"
+    position: int  # 1, 2, 3... in the order the chunks were made; the number inside `ref`
+    page: int
+    section: str
+    text: str

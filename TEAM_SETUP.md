@@ -47,6 +47,8 @@ pre-commit install
 
 `pre-commit install` is the important one. It makes the formatting, lint, and secret checks run on every commit.
 
+**Optional: meaning-based search.** Question search works on keywords alone. To also try the embedding model (a large install because it brings PyTorch, plus a download of about 90 MB on first use), run `pip install -r requirements-embeddings.txt`. You do not need it for tests or CI. To see how much it helps, run `python -m tests.eval.retrieval --embeddings` (see [ADR-0043](docs/decisions/0043-retriever-implementation.md)).
+
 ### 3. Your own `.env` and keys
 
 ```bash

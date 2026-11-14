@@ -36,3 +36,23 @@ def get_pdf(root: Path, patient_id: str, document_id: str) -> bytes:
 
 def delete_patient_files(root: Path, patient_id: str) -> None:
     shutil.rmtree(patient_dir(root, patient_id), ignore_errors=True)
+
+
+def _index_path(root: Path, patient_id: str, name: str) -> Path:
+    if name != Path(name).name:
+        raise ValueError("Index file names are plain names")
+    return patient_dir(root, patient_id) / "index" / name
+
+
+def save_index_file(root: Path, patient_id: str, name: str, data: bytes) -> None:
+    """Store a piece of the patient's search index. It is rebuilt freely, so overwriting is fine."""
+    path = _index_path(root, patient_id, name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_bytes(data)
+    temp.replace(path)
+
+
+def get_index_file(root: Path, patient_id: str, name: str) -> bytes | None:
+    path = _index_path(root, patient_id, name)
+    return path.read_bytes() if path.exists() else None
