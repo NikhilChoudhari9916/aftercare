@@ -1,3 +1,4 @@
+import re
 import shutil
 from pathlib import Path
 from uuid import UUID
@@ -39,7 +40,8 @@ def delete_patient_files(root: Path, patient_id: str) -> None:
 
 
 def _index_path(root: Path, patient_id: str, name: str) -> Path:
-    if name != Path(name).name:
+    # An allow-list, not a Path check: "..\\x" is a plain name on Linux but a path on Windows.
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", name):
         raise ValueError("Index file names are plain names")
     return patient_dir(root, patient_id) / "index" / name
 
