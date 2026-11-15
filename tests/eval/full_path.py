@@ -304,18 +304,21 @@ def run_full_path(
     jobs = [(case, run) for case in cases for run in range(1, runs + 1)]
     with tempfile.TemporaryDirectory(prefix="aftercare-full-path-") as folder:
         world = build_world(keys, settings, Path(folder))
+        try:
 
-        def work(job: tuple[dict, int]) -> RunResult:
-            case, run = job
-            return run_once(
-                world, llm, version, patients[case["patient"]], case, run,
-                global_forbidden, claims, budget,
-            )  # fmt: skip
+            def work(job: tuple[dict, int]) -> RunResult:
+                case, run = job
+                return run_once(
+                    world, llm, version, patients[case["patient"]], case, run,
+                    global_forbidden, claims, budget,
+                )  # fmt: skip
 
-        if workers <= 1:
-            return [work(job) for job in jobs]
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            return list(pool.map(work, jobs))
+            if workers <= 1:
+                return [work(job) for job in jobs]
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                return list(pool.map(work, jobs))
+        finally:
+            world.engine.dispose()  # Windows cannot delete the file while it is open
 
 
 def dry_run_report(
@@ -342,15 +345,18 @@ def dry_run_report(
     ]
     with tempfile.TemporaryDirectory(prefix="aftercare-full-path-") as folder:
         world = build_world(keys, settings, Path(folder))
-        with Session(world.engine) as db:
-            retriever = Retriever(db)  # keywords only: the dry run loads no embedding model
-            for case in cases:
-                patient_id = world.patient_ids[case["patient"]]
-                profile: ConfirmedProfile | None = load_confirmed_profile(db, patient_id)
-                if profile is None:
-                    raise RuntimeError(f"{case['patient']} has no confirmed profile")
-                tier = apply_rules(case["question"], safety_context(profile)).tier
-                found = retriever.search(patient_id, case["question"], TOP_K)
-                refs = " ".join(passage.id for passage in found) or "(nothing)"
-                lines.append(f"{case['id']:7}{case['expected_action']:17}{tier.name:12}{refs}")
+        try:
+            with Session(world.engine) as db:
+                retriever = Retriever(db)  # keywords only: the dry run loads no embedding model
+                for case in cases:
+                    patient_id = world.patient_ids[case["patient"]]
+                    profile: ConfirmedProfile | None = load_confirmed_profile(db, patient_id)
+                    if profile is None:
+                        raise RuntimeError(f"{case['patient']} has no confirmed profile")
+                    tier = apply_rules(case["question"], safety_context(profile)).tier
+                    found = retriever.search(patient_id, case["question"], TOP_K)
+                    refs = " ".join(passage.id for passage in found) or "(nothing)"
+                    lines.append(f"{case['id']:7}{case['expected_action']:17}{tier.name:12}{refs}")
+        finally:
+            world.engine.dispose()  # Windows cannot delete the file while it is open
     return "\n".join(lines)

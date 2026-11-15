@@ -7,12 +7,15 @@ gate, router, tools and validators, and that what it scores is what the app did.
 import tempfile
 from pathlib import Path
 
+import pytest
+from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from app.agents.question_graph import QuestionResult, Route
 from app.llm import LLMResponse, LLMUnavailable, ToolCall
 from app.qa.retriever import Retriever
 from tests.auth.helpers import make_settings
+from tests.eval import full_path
 from tests.eval.full_path import (
     FALLBACK,
     OUT_OF_SCOPE,
@@ -162,10 +165,13 @@ def test_each_outcome_maps_to_an_action_that_is_never_an_expected_one():
 def test_each_patient_has_only_their_own_chunks():
     with tempfile.TemporaryDirectory() as folder:
         world = build_world(["P1", "P3"], SETTINGS, Path(folder))
-        with Session(world.engine) as db:
-            retriever = Retriever(db)
-            p1 = retriever.search(world.patient_ids["P1"], "Prinivil lisinopril", 10)
-            p3 = retriever.search(world.patient_ids["P3"], "Prinivil lisinopril", 10)
+        try:
+            with Session(world.engine) as db:
+                retriever = Retriever(db)
+                p1 = retriever.search(world.patient_ids["P1"], "Prinivil lisinopril", 10)
+                p3 = retriever.search(world.patient_ids["P3"], "Prinivil lisinopril", 10)
+        finally:
+            world.engine.dispose()  # Windows cannot delete the file while it is open
 
     assert all("Prinivil" not in passage.text for passage in p1)
     assert any("Prinivil" in passage.text for passage in p3)
@@ -179,3 +185,52 @@ def test_the_dry_run_report_covers_every_case_and_calls_no_model():
     assert "33 cases x 3 runs = 99 questions" in report
     assert all(c["id"] in report for c in cases)
     assert "P1-U1" in report and "P1-U2" in report
+
+
+# --- the database file must be closed before its folder is removed (Windows cannot delete an
+# open file; this checks the order on every system) ---
+
+
+def _record_close_and_cleanup(monkeypatch) -> list[str]:
+    events: list[str] = []
+    real_dispose = Engine.dispose
+
+    def dispose(self, *args, **kwargs):
+        events.append("dispose")
+        return real_dispose(self, *args, **kwargs)
+
+    class Recording(tempfile.TemporaryDirectory):
+        def cleanup(self):
+            events.append("folder removed")
+            super().cleanup()
+
+    monkeypatch.setattr(Engine, "dispose", dispose)
+    monkeypatch.setattr(full_path.tempfile, "TemporaryDirectory", Recording)
+    return events
+
+
+def test_the_engine_is_closed_before_the_folder_is_removed_in_a_real_run(monkeypatch):
+    events = _record_close_and_cleanup(monkeypatch)
+
+    run(FakeLLM(), "T6")
+
+    assert events == ["dispose", "folder removed"]
+
+
+def test_the_engine_is_closed_before_the_folder_is_removed_in_a_dry_run(monkeypatch):
+    events = _record_close_and_cleanup(monkeypatch)
+    cases, _ = load_cases()
+
+    dry_run_report(cases[:1], SETTINGS, runs=1, version="v7", claims=False)
+
+    assert events == ["dispose", "folder removed"]
+
+
+def test_the_engine_is_closed_before_the_folder_is_removed_even_when_the_run_fails(monkeypatch):
+    events = _record_close_and_cleanup(monkeypatch)
+    monkeypatch.setattr(full_path, "run_once", lambda *a, **k: 1 / 0)
+
+    with pytest.raises(ZeroDivisionError):
+        run(FakeLLM(), "T6")
+
+    assert events == ["dispose", "folder removed"]
