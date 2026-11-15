@@ -46,6 +46,11 @@ class Settings(BaseModel):
     answer_prompt_version: str = "v7"  # prompts/answer_agent_system_prompt_{version}.txt
     max_tool_calls: int = 6
     agent_timeout_seconds: float = 30.0
+    router_prompt_version: str = "v1"  # prompts/router_system_prompt_{version}.txt
+    answer_max_tokens: int = 3000  # room for the model's thinking as well as the answer
+    router_max_tokens: int = 400
+    max_question_chars: int = 500
+    session_memory_turns: int = 10  # CLAUDE.md section 9: the last 10 turns
     classifier_runs: int = 3  # ADR-0005: run the safety classifier 3 times, take the most severe
     classifier_timeout_seconds: float = 10.0
 

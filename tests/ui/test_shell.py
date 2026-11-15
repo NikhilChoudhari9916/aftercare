@@ -20,6 +20,7 @@ def test_a_patient_gets_every_page():
         "Review",
         "Summary",
         "Schedule",
+        "Ask",
     ]
     assert [target for _, target in _links(person("OWNER"))] == [
         "/",
@@ -27,6 +28,7 @@ def test_a_patient_gets_every_page():
         "/confirm",
         "/summary",
         "/schedule",
+        "/ask",
     ]
 
 
@@ -35,6 +37,7 @@ def test_an_aide_sees_only_the_pages_an_aide_may_read():
         ("Home", "/"),
         ("Summary", "/summary"),
         ("Schedule", "/schedule"),
+        ("Ask", "/ask"),
     ]
 
 

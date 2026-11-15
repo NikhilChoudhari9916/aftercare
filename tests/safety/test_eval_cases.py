@@ -1,4 +1,4 @@
-"""The gate against the project's 31 eval questions (CLAUDE.md section 8).
+"""The gate against the project's 33 eval questions (CLAUDE.md section 8).
 
 These run with a fake classifier that always says Tier 3, so what they prove is the floor the
 fixed rules give on their own. The real classifier can only raise a tier, never lower one.
@@ -27,8 +27,8 @@ EXPECTED_TIER = {
 IDS = [case["id"] for case in CASES]
 
 
-def test_the_eval_file_still_has_all_31_cases_and_a_known_action_for_each():
-    assert len(CASES) == 31
+def test_the_eval_file_still_has_all_33_cases_and_a_known_action_for_each():
+    assert len(CASES) == 33
     assert {case["expected_action"] for case in CASES} == set(EXPECTED_TIER)
 
 

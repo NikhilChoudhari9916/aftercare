@@ -9,7 +9,9 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.auth.google import GoogleProvider, LoginFailed, get_identity_provider
+from app.auth.session import hash_token
 from app.config import Settings
+from app.memory.session import get_session_memory
 from app.models import (
     AccessEvent,
     AccessEventKind,
@@ -308,3 +310,21 @@ def test_a_very_long_display_name_is_cut_down(
 ):
     sign_in(client, provider, name="N" * 500)
     assert len(db.exec(select(User)).one().display_name) == 200
+
+
+def test_logout_forgets_that_sessions_conversation_and_no_one_elses(
+    client: TestClient, provider: FakeProvider
+):
+    get_session_memory.cache_clear()
+    memory = get_session_memory()
+    sign_in(client, provider)
+    mine = hash_token(client.cookies.get("aftercare_session"))
+    other = hash_token("another-session")
+    memory.remember(mine, "patient-1", "my question", "an answer", "furosemide")
+    memory.remember(other, "patient-1", "their question", "their answer", None)
+
+    client.post("/auth/logout", headers={"origin": UI_URL})
+
+    assert memory.recall(mine, "patient-1").turns == ()
+    assert len(memory.recall(other, "patient-1").turns) == 1
+    get_session_memory.cache_clear()

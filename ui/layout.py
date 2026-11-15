@@ -60,6 +60,7 @@ def show_not_confirmed(me: Me, patient: PatientRef, active: str) -> None:
     with app_shell(me, active=active):
         with ui.column().classes("ac-card ac-hero"):
             ui.label("Your papers aren't confirmed yet").classes("ac-h2")
+            ui.label("If this might be an emergency, call 911 now.").classes("ac-small font-bold")
             if patient.role == "OWNER":
                 ui.label("Check each item AfterCare found, and this page will fill in.").classes(
                     "ac-lead"
