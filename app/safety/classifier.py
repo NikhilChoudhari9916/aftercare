@@ -17,9 +17,10 @@ from app.safety.context import PatientSafetyContext
 from app.safety.rules import Tier
 
 CLASSIFIER_PROMPT = "safety_classifier_system_prompt_v1.txt"
-MAX_REPLY_TOKENS = (
-    200  # the reply is one line, but a few extra words must not be cut off and discarded
-)
+# The reply is one line, but the model's own thinking counts toward this limit. A reply cut off at
+# the limit is a failed reading (Tier 2), and on the real model 200 cut off a calm two-part
+# question. It is only a ceiling: tokens the model does not write are not paid for.
+MAX_REPLY_TOKENS = 1000
 NO_WARNING_SIGNS = "(the papers list none)"
 
 logger = logging.getLogger(__name__)
