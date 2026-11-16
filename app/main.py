@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.db import get_engine, init_db
 from app.documents.routes import router as documents_router
 from app.jobs.runner import ThreadJobRunner, mark_interrupted_jobs
+from app.qa.routes import router as qa_router
 from app.summary.routes import router as summary_router
 
 LOGIN_COOKIE_NAME = "aftercare_login"
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(documents_router)
     app.include_router(summary_router)
+    app.include_router(qa_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

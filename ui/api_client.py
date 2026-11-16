@@ -74,6 +74,7 @@ class Draft(BaseModel):
 
 GENERIC_REJECTION = "Something went wrong. Please try again."
 UPLOAD_TIMEOUT_SECONDS = 60.0
+ASK_TIMEOUT_SECONDS = 90.0  # a question may use a few tool calls, one model call each
 
 
 class SummaryLine(BaseModel):
@@ -140,6 +141,21 @@ class Schedule(BaseModel):
     as_needed: list[MedicineLine]
     stopped: list[MedicineLine]
     follow_ups: list[FollowUpLine]
+
+
+class Citation(BaseModel):
+    id: str
+    kind: str  # "paper" or "label"
+    page: int | None = None
+    label: str  # the words the little tag shows, such as "From your papers, page 1"
+
+
+class Answer(BaseModel):
+    answer: str  # with [D1] style tags still in it; ui/content.py turns them into labels
+    followups: list[str] = []
+    citations: list[Citation] = []
+    tier: int
+    outcome: str
 
 
 def _rejection_message(response: httpx.Response) -> str:
@@ -301,3 +317,18 @@ class BackendClient:
         if response.status_code != 200:
             raise BackendUnavailable(f"status {response.status_code}")
         return self._parse(Schedule, response)
+
+    async def ask(self, session_token: str | None, patient_id: str, question: str) -> Answer:
+        """Ask one question about the confirmed papers. Owners and aides may both ask."""
+        response = await self._send(
+            "POST",
+            f"/patients/{patient_id}/ask",
+            session_token,
+            timeout=ASK_TIMEOUT_SECONDS,
+            json={"question": question},
+        )
+        if response.status_code in (403, 404, 422, 503):
+            raise Rejected(_rejection_message(response))
+        if response.status_code != 200:
+            raise BackendUnavailable(f"status {response.status_code}")
+        return self._parse(Answer, response)

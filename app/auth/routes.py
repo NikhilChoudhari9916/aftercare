@@ -12,9 +12,11 @@ from app.auth.session import (
     clear_session_cookie,
     create_session,
     end_session,
+    hash_token,
     set_session_cookie,
 )
 from app.config import LOCAL_HOSTS, Settings
+from app.memory.session import get_session_memory
 from app.models import (
     AccessEvent,
     AccessEventKind,
@@ -159,6 +161,9 @@ def dev_login(
 def logout(request: Request, db: DbSession, settings: AppSettings) -> Response:
     token = request.cookies.get(COOKIE_NAME)
     if token:
+        # Conversation memory ends with the session (ADR-0031). It goes first, so a database
+        # problem while closing the session cannot leave the conversation behind.
+        get_session_memory().forget(hash_token(token))
         end_session(db, token)
     response = RedirectResponse(settings.ui_url, status_code=303)
     clear_session_cookie(response, settings)

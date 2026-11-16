@@ -77,7 +77,7 @@ def result(**changes) -> RunResult:
 def test_every_case_belongs_to_a_known_patient_and_expects_one_of_four_actions():
     cases, _ = load_cases()
 
-    assert len(cases) == 31
+    assert len(cases) == 33
     assert {c["patient"] for c in cases} == {"P1", "P2", "P3"}
     assert {c["expected_action"] for c in cases} == {
         "Call 911",

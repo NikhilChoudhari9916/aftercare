@@ -13,6 +13,7 @@ from ui.components.shell import app_shell
 from ui.content import HOW_IT_WORKS, describe_role, dev_sign_in_form, error_message, sign_in_url
 from ui.layout import show_server_down
 from ui.pages import (  # noqa: F401  (importing registers the pages)
+    ask,
     confirm,
     schedule,
     summary,
@@ -40,6 +41,7 @@ READ_ACTIONS = (
         "/schedule",
         True,
     ),
+    ("forum", "Ask a question", "Short answers from your papers", "/ask", False),
 )
 
 # Little round icons on the badge, like the row of faces in the reference design.
