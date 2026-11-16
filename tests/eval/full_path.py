@@ -17,7 +17,7 @@ Not paid for until you run it: `--dry-run` calls no model (see `dry_run_report`)
 
 import re
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,7 +51,7 @@ from app.qa.profile_text import render_profile_text
 from app.qa.prompts import load_answer_prompt
 from app.qa.retriever import Retriever
 from app.safety.context import safety_context
-from app.safety.gate import run_gate
+from app.safety.gate import GateResult, run_gate
 from app.safety.rules import apply_rules
 from app.summary.profile import ConfirmedProfile, load_confirmed_profile
 from app.tools import ToolContext, default_registry
@@ -198,7 +198,12 @@ def build_world(keys: Sequence[str], settings: Settings, directory: Path) -> Wor
 
 
 def _deps(
-    world: World, db: Session, llm: LLM, key: str, retriever: Retriever
+    world: World,
+    db: Session,
+    llm: LLM,
+    key: str,
+    retriever: Retriever,
+    on_gate: Callable[[GateResult], None] | None = None,
 ) -> QuestionDeps | None:
     patient_id = world.patient_ids[key]
     profile = load_confirmed_profile(db, patient_id)
@@ -206,6 +211,13 @@ def _deps(
         return None
     settings = world.settings
     context = safety_context(profile)
+
+    def gate(text: str) -> GateResult:
+        verdict = run_gate(text, context, llm=llm, settings=settings)
+        if on_gate is not None:
+            on_gate(verdict)  # the eval only watches; the verdict is returned unchanged
+        return verdict
+
     return QuestionDeps(
         llm=llm,
         settings=settings,
@@ -221,7 +233,7 @@ def _deps(
             openfda=world.labels[key],
             search=retriever,
         ),
-        gate=lambda text: run_gate(text, context, llm=llm, settings=settings),
+        gate=gate,
         recall=Recall(),  # every question is asked fresh, as in the prompt-only eval
     )
 
@@ -265,7 +277,8 @@ def run_once(
         )  # fmt: skip
     with Session(world.engine) as db:
         retriever = build_retriever(db, world.settings)
-        deps = _deps(world, db, llm, case["patient"], retriever)
+        verdicts: list[GateResult] = []
+        deps = _deps(world, db, llm, case["patient"], retriever, verdicts.append)
         if deps is None:
             raise RuntimeError(f"{case['patient']} has no confirmed profile in the eval database")
         result = run_question(deps, case["question"])
@@ -281,7 +294,18 @@ def run_once(
         except LLMError:
             unsupported = None
         budget.add(0.01)
-    return RunResult(**base, **scored, unsupported=unsupported, error=None)
+    return RunResult(
+        **base, **scored, unsupported=unsupported, error=None,
+        gate_tier=result.tier,
+        decided_by=result.decided_by,
+        classifier_failures=sum(v.classifier_failures for v in verdicts),
+        route=result.task,
+        tool_names=result.tool_names,
+        attempts=result.attempts,
+        fallback_reason=result.fallback_reason,
+        fallback_detail=result.fallback_detail,
+        total_ms=result.total_ms,
+    )  # fmt: skip
 
 
 def run_full_path(

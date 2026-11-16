@@ -24,7 +24,7 @@ import threading
 from collections import Counter
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -120,6 +120,20 @@ class RunResult:
     answer: str  # synthetic data only
     input_tokens: int = 0
     output_tokens: int = 0  # includes the model's thinking
+    # What the full-path eval saw inside the graph. None or empty for the prompt-only eval.
+    gate_tier: int | None = None
+    decided_by: str = ""
+    classifier_failures: int | None = None
+    route: str = ""
+    tool_names: list[str] = field(default_factory=list)
+    attempts: int | None = None
+    fallback_reason: str | None = None
+    fallback_detail: str | None = None  # an error class name, never its message
+    total_ms: int | None = None
+
+    @property
+    def traced(self) -> bool:
+        return self.gate_tier is not None
 
     @property
     def skipped(self) -> bool:
@@ -375,7 +389,60 @@ def summarize(results: list[RunResult]) -> str:
         hits = sum(bool(r.forbidden) for r in rows)
         rej = sum(bool(r.checks) for r in rows)
         lines.append(f"| {case_id} | {rows[0].expected} | {got} | {facts} | {hits} | {rej} |")
+    if any(r.traced for r in results):
+        lines += _trace_sections(results)
     return "\n".join(lines)
+
+
+FALLBACK_REASONS = ("timeout", "tool_limit", "model_error", "validators", "error")
+
+
+def fallback_counts(results: list[RunResult]) -> Counter[str]:
+    """Fallbacks by reason. A model_error is split by the error's class name."""
+    counts: Counter[str] = Counter()
+    for r in results:
+        if r.fallback_reason is None:
+            continue
+        label = r.fallback_reason
+        if r.fallback_detail:
+            label = f"{label} ({r.fallback_detail})"
+        counts[label] += 1
+    return counts
+
+
+def _trace_sections(results: list[RunResult]) -> list[str]:
+    traced = [r for r in results if r.traced]
+    counts = fallback_counts(traced)
+    rows: list[tuple[str, int]] = []
+    for reason in FALLBACK_REASONS:
+        detailed = [(label, n) for label, n in counts.items() if label.startswith(f"{reason} (")]
+        rows += detailed or [(reason, counts.get(reason, 0))]
+    rows += [
+        (label, n) for label, n in counts.items() if label.split(" (")[0] not in FALLBACK_REASONS
+    ]
+    failures = sum(r.classifier_failures or 0 for r in traced)
+    questions = sum(bool(r.classifier_failures) for r in traced)
+    lines = ["", "## Fallbacks by reason", "", "| Reason | Count |", "|---|---|"]
+    lines += [f"| {reason} | {n} |" for reason, n in rows]
+    lines += [
+        "",
+        f"- **Classifier failures** (a failed safety reading counts as Tier 2): {failures} "
+        f"in {questions} of {len(traced)} questions",
+        "",
+        "## By run",
+        "",
+        "| Case | Run | Expected | Got | Gate tier | Decided by | Classifier failures | Route "
+        "| Tools | Attempts | Failed checks | Fallback reason | Fallback detail | ms |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
+    for r in traced:
+        lines.append(
+            f"| {r.case_id} | {r.run} | {r.expected} | {r.got} | {r.gate_tier} | {r.decided_by} "
+            f"| {r.classifier_failures} | {r.route} | {', '.join(r.tool_names)} | {r.attempts} "
+            f"| {' '.join(r.checks)} | {r.fallback_reason or ''} | {r.fallback_detail or ''} "
+            f"| {r.total_ms} |"
+        )
+    return lines
 
 
 CSV_FIELDS = [
@@ -385,15 +452,23 @@ CSV_FIELDS = [
 ]  # fmt: skip
 
 
+TRACE_FIELDS = [
+    "gate_tier", "decided_by", "classifier_failures", "route", "tool_names", "attempts",
+    "fallback_reason", "fallback_detail", "total_ms",
+]  # fmt: skip
+
+
 def write_csv(results: list[RunResult], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    fields = CSV_FIELDS + TRACE_FIELDS if any(r.traced for r in results) else CSV_FIELDS
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS)
+        writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         for r in results:
             writer.writerow(
                 {
-                    **{f: getattr(r, f) for f in CSV_FIELDS},
+                    **{f: getattr(r, f) for f in fields},
+                    **({"tool_names": " ".join(r.tool_names)} if "tool_names" in fields else {}),
                     "forbidden": " | ".join(r.forbidden),
                     "checks": " ".join(r.checks),
                 }
@@ -417,7 +492,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--runs", type=int, default=DEFAULT_RUNS)
     parser.add_argument("--only", help="comma-separated case IDs, such as S1,T4")
     parser.add_argument("--claims", action="store_true", help="also check every claim (more calls)")
-    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument(
+        "--workers", type=int, default=4, help="how many questions run at the same time"
+    )
     parser.add_argument(
         "--budget",
         type=float,
@@ -446,6 +523,7 @@ def main(argv: list[str] | None = None) -> None:
             return
         print(f"Full path, prompt {args.version}: {len(cases)} cases x {args.runs} runs")
         print(f"Models: {settings.model_main} (answers), {settings.model_fast} (router, safety)")
+        print(f"Parallel workers: {args.workers}")
         print(f"Budget cap: ${args.budget:.2f} (estimated; new questions stop once it is reached)")
         results = run_full_path(
             get_llm(), settings, version=args.version, cases=cases,
