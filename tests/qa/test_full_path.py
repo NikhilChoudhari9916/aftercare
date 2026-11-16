@@ -13,7 +13,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from app.agents.question_graph import QuestionResult, Route
-from app.llm import LLMResponse, LLMUnavailable, ToolCall
+from app.llm import LLMError, LLMResponse, LLMUnavailable, ToolCall
 from app.qa.retriever import Retriever
 from tests.auth.helpers import make_settings
 from tests.eval import full_path
@@ -297,6 +297,49 @@ def test_a_model_failure_records_only_the_error_class_never_its_message():
     assert result.fallback_reason == "model_error"
     assert result.fallback_detail == "LLMUnavailable"
     assert "secret" not in str(result)
+
+
+def test_a_model_error_through_the_graph_carries_the_detail_but_not_the_message():
+    llm = FakeLLM()
+    for _ in range(3):
+        llm.queue_reply(say("TIER 3"))
+    llm.queue_extraction(LLMUnavailable("secret patient text", detail="LLMUnavailable status=529"))
+    llm.queue_reply(
+        LLMError("secret patient text", detail="LLMError status=400 type=invalid_request_error")
+    )
+
+    [result] = run(llm, "S1")
+
+    assert result.fallback_reason == "model_error"
+    assert result.fallback_detail == "LLMError status=400 type=invalid_request_error"
+    assert "secret" not in str(result)
+
+
+def test_eval_output_stays_well_formed_with_a_long_detail(tmp_path):
+    detail = "LLMError status=400 type=invalid_request_error msg=" + "credit balance too low " * 7
+    detail = detail[:199] + "…"
+    results = [
+        run_result(gate_tier=2, fallback_reason="model_error", fallback_detail=detail)
+        for _ in range(2)
+    ] + [
+        run_result(
+            gate_tier=2, fallback_reason="model_error", fallback_detail="LLMRefused stop=refusal"
+        ),
+        run_result(gate_tier=3, fallback_reason="model_error", fallback_detail="a | b\nc"),
+    ]
+
+    write_csv(results, tmp_path / "a.csv")
+    summary = summarize(results)
+
+    rows = list(csv.reader((tmp_path / "a.csv").open(encoding="utf-8", newline="")))
+    assert {len(row) for row in rows} == {len(rows[0])}
+    assert rows[1][rows[0].index("fallback_detail")] == detail
+    assert "| model_error (LLMError) | 2 |" in summary
+    assert "| model_error (LLMRefused) | 1 |" in summary
+    assert "### Distinct error details" in summary and f"- 2 x {detail}" in summary
+    by_run = [line for line in summary.splitlines() if line.startswith("| S1 | 1 |")]
+    assert {line.count("|") for line in by_run} == {by_run[0].count("|")}
+    assert "a | b" not in summary
 
 
 def test_the_csv_has_the_trace_columns_only_for_a_traced_run(tmp_path):

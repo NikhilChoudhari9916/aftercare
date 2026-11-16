@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Protocol, TypeVar
@@ -10,8 +11,20 @@ from app.config import Settings, get_settings
 T = TypeVar("T", bound=BaseModel)
 
 
+DETAIL_MAX_CHARS = 200
+_API_KEY = re.compile(r"sk-[A-Za-z0-9_-]+")
+
+
 class LLMError(Exception):
-    """Base class. Messages never contain prompts or patient text."""
+    """Base class. Messages never contain prompts or patient text.
+
+    `detail` is a short, one-line, already-cleaned reason that is safe to show a developer in the
+    eval output. It is optional; without it, it is just the class name.
+    """
+
+    def __init__(self, message: str = "", detail: str | None = None) -> None:
+        super().__init__(message)
+        self.detail = detail or type(self).__name__
 
 
 class LLMUnavailable(LLMError):
@@ -142,18 +155,56 @@ class AnthropicLLM:
         try:
             response = _call(self._client.messages.parse, **params)
         except ValueError as error:  # pydantic could not read the reply as the schema
-            raise LLMOutputError("the reply did not match the requested shape") from error
+            raise LLMOutputError(
+                "the reply did not match the requested shape",
+                detail="LLMOutputError reason=bad_shape",
+            ) from error
         _check_stop(response.stop_reason)
         if response.parsed_output is None:
-            raise LLMOutputError("the reply did not match the requested shape")
+            raise LLMOutputError(
+                "the reply did not match the requested shape",
+                detail="LLMOutputError reason=bad_shape",
+            )
         return response.parsed_output
 
 
 def _check_stop(stop_reason: str | None) -> None:
     if stop_reason == "refusal":
-        raise LLMRefused("the model declined this request")
+        raise LLMRefused("the model declined this request", detail="LLMRefused stop=refusal")
     if stop_reason == "max_tokens":
-        raise LLMOutputError("the reply was cut off at the token limit")
+        raise LLMOutputError(
+            "the reply was cut off at the token limit", detail="LLMOutputError stop=max_tokens"
+        )
+
+
+def _one_line(text: str) -> str:
+    """Redact key-like strings, then drop the characters that break a CSV or a markdown table."""
+    text = _API_KEY.sub("[redacted-key]", text)
+    return " ".join(text.replace("|", " ").replace(",", " ").split())
+
+
+def _safe_detail(error: Exception) -> str:
+    """Class, HTTP status, API error type and the API's own message, on one short line.
+
+    Built only from the response the API sent back, never from the request, so the prompt,
+    the messages and the headers cannot get in.
+    """
+    parts = [type(error).__name__]
+    status = getattr(error, "status_code", None)
+    if status is not None:
+        parts.append(f"status={status}")
+    body = getattr(error, "body", None)
+    api_error = body.get("error", body) if isinstance(body, dict) else None
+    api_type = api_error.get("type") if isinstance(api_error, dict) else None
+    if isinstance(api_type, str) and api_type != "error":
+        parts.append(f"type={api_type}")
+    api_message = getattr(error, "message", None)
+    if isinstance(api_message, str) and api_message:
+        parts.append(f"msg={api_message}")
+    line = _one_line(" ".join(parts))
+    if len(line) > DETAIL_MAX_CHARS:
+        line = line[: DETAIL_MAX_CHARS - 1] + "…"
+    return line
 
 
 def _call(function, **params):
@@ -161,11 +212,15 @@ def _call(function, **params):
         return function(**params)
     except (anthropic.APIConnectionError, anthropic.RateLimitError) as error:
         # APITimeoutError is a subclass of APIConnectionError.
-        raise LLMUnavailable(type(error).__name__) from error
+        raise LLMUnavailable(type(error).__name__, detail=_safe_detail(error)) from error
     except anthropic.APIStatusError as error:
         if error.status_code >= 500:
-            raise LLMUnavailable(f"server error {error.status_code}") from error
-        raise LLMError(f"request rejected ({error.status_code})") from error
+            raise LLMUnavailable(
+                f"server error {error.status_code}", detail=_safe_detail(error)
+            ) from error
+        raise LLMError(
+            f"request rejected ({error.status_code})", detail=_safe_detail(error)
+        ) from error
 
 
 @lru_cache

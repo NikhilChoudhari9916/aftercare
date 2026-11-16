@@ -99,7 +99,8 @@ class QuestionResult(BaseModel):
     fallback_reason: str | None
     gate_ms: int
     total_ms: int
-    # Class name only (never the message, which can hold patient text) of the failed model call.
+    # A short cleaned reason for the failed model call (class, status, API error type and message).
+    # Eval output only: it is never stored in QALog or returned by /ask.
     fallback_detail: str | None = None
 
 
@@ -120,7 +121,7 @@ class QuestionState(TypedDict, total=False):
     failed_checks: list[str]
     validation: ValidationResult
     stop: str | None  # why the loop ended early: timeout, tool_limit or model_error
-    fallback_detail: str | None  # the error class name behind a model_error
+    fallback_detail: str | None  # the cleaned reason (LLMError.detail) behind a model_error
     outcome: str
     fallback_reason: str | None
     reply: str
@@ -311,7 +312,7 @@ def build_question_graph(deps: QuestionDeps):
                 max_tokens=settings.answer_max_tokens,
             )
         except LLMError as error:
-            return {"stop": "model_error", "fallback_detail": type(error).__name__}
+            return {"stop": "model_error", "fallback_detail": error.detail}
         return {"last_reply": reply}
 
     def after_agent(state: QuestionState) -> str:

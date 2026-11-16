@@ -128,7 +128,7 @@ class RunResult:
     tool_names: list[str] = field(default_factory=list)
     attempts: int | None = None
     fallback_reason: str | None = None
-    fallback_detail: str | None = None  # an error class name, never its message
+    fallback_detail: str | None = None  # a cleaned one-line reason (LLMError.detail)
     total_ms: int | None = None
 
     @property
@@ -398,16 +398,31 @@ FALLBACK_REASONS = ("timeout", "tool_limit", "model_error", "validators", "error
 
 
 def fallback_counts(results: list[RunResult]) -> Counter[str]:
-    """Fallbacks by reason. A model_error is split by the error's class name."""
+    """Fallbacks by reason. A model_error is split by error class (the detail's first word)."""
     counts: Counter[str] = Counter()
     for r in results:
         if r.fallback_reason is None:
             continue
         label = r.fallback_reason
         if r.fallback_detail:
-            label = f"{label} ({r.fallback_detail})"
+            label = f"{label} ({r.fallback_detail.split()[0]})"
         counts[label] += 1
     return counts
+
+
+def _cell(text: str) -> str:
+    """A one-line table cell. Error details are already clean; this is a backstop."""
+    return " ".join(text.replace("|", " ").split())
+
+
+def _distinct_details(traced: list[RunResult], limit: int = 5) -> list[str]:
+    """The most common distinct error details, with counts, so the real cause is visible."""
+    counts = Counter(r.fallback_detail for r in traced if r.fallback_detail)
+    if not counts:
+        return []
+    lines = ["", "### Distinct error details", ""]
+    lines += [f"- {n} x {_cell(detail)}" for detail, n in counts.most_common(limit)]
+    return lines
 
 
 def _trace_sections(results: list[RunResult]) -> list[str]:
@@ -424,6 +439,7 @@ def _trace_sections(results: list[RunResult]) -> list[str]:
     questions = sum(bool(r.classifier_failures) for r in traced)
     lines = ["", "## Fallbacks by reason", "", "| Reason | Count |", "|---|---|"]
     lines += [f"| {reason} | {n} |" for reason, n in rows]
+    lines += _distinct_details(traced)
     lines += [
         "",
         f"- **Classifier failures** (a failed safety reading counts as Tier 2): {failures} "
@@ -439,7 +455,8 @@ def _trace_sections(results: list[RunResult]) -> list[str]:
         lines.append(
             f"| {r.case_id} | {r.run} | {r.expected} | {r.got} | {r.gate_tier} | {r.decided_by} "
             f"| {r.classifier_failures} | {r.route} | {', '.join(r.tool_names)} | {r.attempts} "
-            f"| {' '.join(r.checks)} | {r.fallback_reason or ''} | {r.fallback_detail or ''} "
+            f"| {' '.join(r.checks)} | {r.fallback_reason or ''} "
+            f"| {_cell(r.fallback_detail or '')} "
             f"| {r.total_ms} |"
         )
     return lines
