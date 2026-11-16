@@ -404,7 +404,7 @@ _BOLD = re.compile(r"\*\*(.+?)\*\*")
 # A little pill-shaped label. Inline, so the page needs no new style rules.
 CITE_STYLE = (
     "display:inline-block;margin-left:.35rem;padding:.05rem .55rem;border-radius:999px;"
-    "font-size:.78rem;background:rgba(159,231,207,.18);color:#9FE7CF;white-space:nowrap"
+    "font-size:.78rem;background:rgba(20,84,63,.12);color:#14543F;font-weight:600;white-space:nowrap"
 )
 
 
