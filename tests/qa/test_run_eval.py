@@ -167,6 +167,49 @@ def test_a_case_pattern_is_checked_as_well_as_the_global_ones():
     assert any("yes" in pattern for pattern in scored["forbidden"])
 
 
+def two_doses_pattern() -> str:
+    return next(p for p in case("P2-T5")["must_not_match"] if "(2|two) (doses" in p)
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "The label says not to take two doses at the same time.",
+        "Please do not take two tablets.",
+        "Don't take 2 doses.",
+        "Don\u2019t take 2 doses.",
+        "Never take two doses.",
+        "Not to take two doses.",
+    ],
+)
+def test_a_negated_two_doses_sentence_is_not_flagged(sentence):
+    assert not re.search(two_doses_pattern(), sentence, re.IGNORECASE)
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Take two doses.",
+        "You can take 2 tablets.",
+        "Go ahead and take two doses.",
+        "TAKE TWO DOSES.",
+        "The label says not to take two doses at the same time. "
+        "But you can take two doses tonight.",
+    ],
+)
+def test_real_two_doses_advice_is_still_flagged_even_after_a_negated_sentence(sentence):
+    assert re.search(two_doses_pattern(), sentence, re.IGNORECASE)
+
+
+def test_only_p2_t5_has_the_two_doses_pattern_and_its_other_pattern_is_unchanged():
+    cases, global_patterns = load_cases()
+    holders = [c["id"] for c in cases if any("(2|two) (doses" in p for p in c["must_not_match"])]
+
+    assert holders == ["P2-T5"]
+    assert case("P2-T5")["must_not_match"][1] == "double (up|your dose)"
+    assert not any("(2|two) (doses" in p for p in global_patterns)
+
+
 # --- running the cases ---
 
 
