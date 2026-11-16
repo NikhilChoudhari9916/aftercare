@@ -15,14 +15,15 @@ from tests.safety.helpers import llm_saying, patient1, reply
 SETTINGS = make_settings()
 
 
+# The rule was made strict in PR review: only a last non-empty line of exactly "TIER n" counts.
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
         ("TIER 1", Tier.EMERGENCY),
         ("tier 2", Tier.CARE_TEAM),
-        ("  Tier 3.\n", Tier.GENERAL),
-        ("TIER3", Tier.GENERAL),
-        ("TIER 3, but chest pain sounds like TIER 1", Tier.EMERGENCY),
+        ("  Tier 3.\n", None),
+        ("TIER3", None),
+        ("TIER 3, but chest pain sounds like TIER 1", None),
         ("I think it is urgent", None),
         ("TIER 4", None),
         ("", None),
@@ -30,6 +31,48 @@ SETTINGS = make_settings()
 )
 def test_the_reply_is_read_conservatively(text, expected):
     assert parse_tier(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("TIER 3", Tier.GENERAL),
+        ("some thinking\nTIER 3", Tier.GENERAL),
+        ("some thinking\n\nTIER 3\n\n\n", Tier.GENERAL),
+        (" tier 2 ", Tier.CARE_TEAM),
+        ("thinking\r\nTIER 1\r\n", Tier.EMERGENCY),
+        ("TIER   2", Tier.CARE_TEAM),
+    ],
+)
+def test_a_last_line_of_exactly_tier_n_is_read(text, expected):
+    assert parse_tier(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "This is not TIER 1, it is a general question. TIER 3",
+        "Not TIER 2. TIER 3",
+        "TIER 3 (a TIER 2 would need a symptom)",
+        "TIER 3\nthat is my answer",
+        "",
+        "   \n\r\n  ",
+        "no tier given here",
+    ],
+)
+def test_a_reply_that_is_not_exactly_a_tier_line_is_unreadable(text):
+    assert parse_tier(text) is None
+
+
+def test_a_chatty_reply_is_unreadable_counts_as_tier_2_and_is_counted_as_failed():
+    chatty = "This is not TIER 1, it is a general question. TIER 3"
+    llm = llm_saying(chatty, "TIER 3", "TIER 3")
+
+    verdict = classify(llm, SETTINGS, "q", patient1())
+
+    assert verdict.tier == Tier.CARE_TEAM
+    assert verdict.failed == 1
+    assert sorted(verdict.runs) == [Tier.CARE_TEAM, Tier.GENERAL, Tier.GENERAL]
 
 
 def test_the_most_severe_of_three_runs_wins():
