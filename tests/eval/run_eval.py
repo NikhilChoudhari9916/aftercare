@@ -10,6 +10,8 @@ Run by hand, never in CI (it calls the real model and spends credits):
     python -m tests.eval.run_eval --version v7
     python -m tests.eval.run_eval --version v7 --claims --workers 4
     python -m tests.eval.run_eval --dry-run          # shows the first prompt and the call count
+    python -m tests.eval.run_eval --full-path --dry-run   # whole question graph, no model
+    python -m tests.eval.run_eval --full-path --version v7 --claims   # what users will see
 
 Results go to tests/eval/results/ (not committed). Record the numbers in prompts/PROMPT_LOG.md.
 """
@@ -398,6 +400,16 @@ def write_csv(results: list[RunResult], path: Path) -> None:
             )
 
 
+def write_results(results: list[RunResult], name: str) -> None:
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    csv_path = RESULTS_DIR / f"{name}_{stamp}.csv"
+    summary = summarize(results)
+    write_csv(results, csv_path)
+    csv_path.with_suffix(".md").write_text(summary, encoding="utf-8")
+    print("\n" + summary)
+    print(f"\nWrote {csv_path} and {csv_path.with_suffix('.md').name}")
+
+
 def main(argv: list[str] | None = None) -> None:
     settings = get_settings()
     parser = argparse.ArgumentParser(description="Run the answer eval on the real model.")
@@ -413,12 +425,36 @@ def main(argv: list[str] | None = None) -> None:
         help="stop starting new calls once the estimated cost reaches this many dollars",
     )
     parser.add_argument("--dry-run", action="store_true", help="show the plan; call no model")
+    parser.add_argument(
+        "--full-path",
+        action="store_true",
+        help="send each question through the whole question graph (gate, router, agent, tools, "
+        "validators) instead of giving the model the sources directly",
+    )
     args = parser.parse_args(argv)
 
-    cases, _ = load_cases()
+    cases, global_forbidden = load_cases()
     if args.only:
         wanted = {item.strip() for item in args.only.split(",")}
         cases = [case for case in cases if case["id"] in wanted]
+    if args.full_path:
+        # Imported here because full_path imports this module.
+        from tests.eval.full_path import dry_run_report, run_full_path
+
+        if args.dry_run:
+            print(dry_run_report(cases, settings, args.runs, args.version, args.claims))
+            return
+        print(f"Full path, prompt {args.version}: {len(cases)} cases x {args.runs} runs")
+        print(f"Models: {settings.model_main} (answers), {settings.model_fast} (router, safety)")
+        print(f"Budget cap: ${args.budget:.2f} (estimated; new questions stop once it is reached)")
+        results = run_full_path(
+            get_llm(), settings, version=args.version, cases=cases,
+            global_forbidden=global_forbidden, runs=args.runs, workers=args.workers,
+            claims=args.claims, budget_dollars=args.budget,
+        )  # fmt: skip
+        write_results(results, f"{args.version}_graph")
+        return
+
     calls = len(cases) * args.runs
     extra = f" plus up to {calls} claim checks" if args.claims else ""
     print(f"Prompt {args.version}: {len(cases)} cases x {args.runs} runs = {calls} calls{extra}")
@@ -442,13 +478,7 @@ def main(argv: list[str] | None = None) -> None:
         get_llm(), settings, version=args.version, runs=args.runs, cases=cases,
         workers=args.workers, claims=args.claims, budget_dollars=args.budget,
     )  # fmt: skip
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    csv_path = RESULTS_DIR / f"{args.version}_{stamp}.csv"
-    summary = summarize(results)
-    write_csv(results, csv_path)
-    csv_path.with_suffix(".md").write_text(summary, encoding="utf-8")
-    print("\n" + summary)
-    print(f"\nWrote {csv_path} and {csv_path.with_suffix('.md').name}")
+    write_results(results, args.version)
 
 
 if __name__ == "__main__":

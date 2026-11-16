@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from html import escape
 
@@ -383,3 +384,44 @@ def needs_close_look(quote_statuses: list[str]) -> str | None:
         return None
     noun = "item needs" if count == 1 else "items need"
     return f"{count} {noun} a close look. We could not find the exact words in your papers."
+
+
+# --- the Ask page ---
+
+MAX_QUESTION_CHARS = 500  # must match Settings.max_question_chars in app/config.py
+ASK_INTRO = "Short answers from your own papers and the official drug labels."
+EMERGENCY_BANNER = "If this might be an emergency, call 911 now."
+ASK_DISCLAIMER = "AfterCare explains your papers. It is not medical advice and cannot diagnose."
+ASK_WAITING = "Looking through your papers..."
+ASK_UNAVAILABLE = "AfterCare couldn't answer just now. Please try again in a moment."
+ASK_EXAMPLES = (
+    "What is each of my medicines for?",
+    "Which medicine is new?",
+    "When should I call my care team?",
+)
+ANSWER_TAG = re.compile(r"\[([DLTS]\d+)\]")
+_BOLD = re.compile(r"\*\*(.+?)\*\*")
+# A little pill-shaped label. Inline, so the page needs no new style rules.
+CITE_STYLE = (
+    "display:inline-block;margin-left:.35rem;padding:.05rem .55rem;border-radius:999px;"
+    "font-size:.78rem;background:rgba(159,231,207,.18);color:#9FE7CF;white-space:nowrap"
+)
+
+
+def citation_labels(citations: list) -> dict[str, str]:
+    """Source ID -> the words its label shows. Any ID not listed here shows no label."""
+    return {citation.id: citation.label for citation in citations}
+
+
+def answer_html(text: str, labels: dict[str, str]) -> str:
+    """The answer as safe HTML: everything is escaped first, then **bold** and [D1] tags are made.
+
+    A tag with no known label is dropped, so a patient never sees a bare code like [D7].
+    """
+    safe = _BOLD.sub(r"<b>\1</b>", escape(text))
+
+    def tag(match: re.Match) -> str:
+        label = labels.get(match.group(1))
+        return f'<span style="{CITE_STYLE}">{escape(label)}</span>' if label else ""
+
+    return ANSWER_TAG.sub(tag, safe).replace("\n", "<br>")

@@ -24,8 +24,9 @@ def _links(me: Me | None) -> list[tuple[str, str]]:
             ("Review", "/confirm"),
             ("Summary", "/summary"),
             ("Schedule", "/schedule"),
+            ("Ask", "/ask"),
         ]
-    return [("Home", "/"), ("Summary", "/summary"), ("Schedule", "/schedule")]
+    return [("Home", "/"), ("Summary", "/summary"), ("Schedule", "/schedule"), ("Ask", "/ask")]
 
 
 def _nav(me: Me | None, active: str) -> None:

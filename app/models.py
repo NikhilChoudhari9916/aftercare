@@ -208,3 +208,28 @@ class Chunk(SQLModel, table=True):
     page: int
     section: str
     text: str
+
+
+class QALog(SQLModel, table=True):
+    """One row per question: IDs, names, counts and timings. Never the question or the answer.
+
+    CLAUDE.md section 9 and ADR-0031: a log row must hold no patient text, so a debugging session
+    sees what happened (which tier, which tools, which checks failed) without health data.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    patient_id: str = Field(index=True)
+    user_id: str = Field(index=True)
+    created_at: datetime = Field(default_factory=utc_now)
+    tier: int  # 1, 2 or 3, from the safety gate
+    decided_by: str  # rules, classifier or nothing_to_check
+    task: str  # MEDICINE, SCHEDULE, OUT_OF_SCOPE, or NONE when the gate stopped it
+    outcome: str  # emergency, answered, redirect, out_of_scope or fallback
+    cited_ids: str = "[]"  # JSON list such as ["D1", "L1"]
+    tool_names: str = "[]"  # JSON list of tool names, in the order they were called
+    tool_calls: int = 0
+    validator_checks: str = "[]"  # JSON list of the check names that failed, over all tries
+    attempts: int = 0  # how many answers were checked (1 or 2)
+    retrieval_mode: str = ""  # keyword or hybrid
+    gate_ms: int = 0
+    total_ms: int = 0
