@@ -17,13 +17,14 @@ from app.safety.context import PatientSafetyContext
 from app.safety.rules import Tier
 
 CLASSIFIER_PROMPT = "safety_classifier_system_prompt_v1.txt"
-MAX_REPLY_TOKENS = (
-    200  # the reply is one line, but a few extra words must not be cut off and discarded
-)
+# The reply is one line, but the model's own thinking counts toward this limit. A reply cut off at
+# the limit is a failed reading (Tier 2), and on the real model 200 cut off a calm two-part
+# question. It is only a ceiling: tokens the model does not write are not paid for.
+MAX_REPLY_TOKENS = 1000
 NO_WARNING_SIGNS = "(the papers list none)"
 
 logger = logging.getLogger(__name__)
-_TIER_WORDS = re.compile(r"tier\s*([123])", re.IGNORECASE)
+_TIER_LINE = re.compile(r"tier\s+([123])", re.IGNORECASE)
 
 
 class ClassifierVerdict(BaseModel):
@@ -33,9 +34,13 @@ class ClassifierVerdict(BaseModel):
 
 
 def parse_tier(reply: str) -> Tier | None:
-    """The most serious tier named in the reply, or None if it names none."""
-    found = [int(number) for number in _TIER_WORDS.findall(reply)]
-    return Tier(min(found)) if found else None
+    """The tier on the reply's last non-empty line, which must be exactly "TIER n".
+
+    Anything else (extra words, a trailing period, "TIER3") is unreadable: None, so Tier 2.
+    """
+    lines = [line.strip() for line in reply.splitlines() if line.strip()]
+    match = _TIER_LINE.fullmatch(lines[-1]) if lines else None
+    return Tier(int(match.group(1))) if match else None
 
 
 def _system_prompt(context: PatientSafetyContext) -> str:
