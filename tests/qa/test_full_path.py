@@ -4,6 +4,7 @@ No model, no internet, no embedding model. These prove that `--full-path` really
 gate, router, tools and validators, and that what it scores is what the app did.
 """
 
+import csv
 import tempfile
 from pathlib import Path
 
@@ -12,10 +13,11 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from app.agents.question_graph import QuestionResult, Route
-from app.llm import LLMResponse, LLMUnavailable, ToolCall
+from app.llm import LLMError, LLMResponse, LLMUnavailable, ToolCall
 from app.qa.retriever import Retriever
 from tests.auth.helpers import make_settings
 from tests.eval import full_path
+from tests.eval import run_eval as eval_module
 from tests.eval.full_path import (
     FALLBACK,
     OUT_OF_SCOPE,
@@ -25,7 +27,7 @@ from tests.eval.full_path import (
     dry_run_report,
     run_full_path,
 )
-from tests.eval.run_eval import load_cases
+from tests.eval.run_eval import RunResult, load_cases, summarize, write_csv
 from tests.fakes import FakeLLM
 
 # Keyword search only: no test loads the real embedding model.
@@ -34,6 +36,16 @@ GOOD_S1 = (
     "Your discharge papers say your water pill, furosemide, is now 40 mg once a day in the "
     "morning. [D1] It was 20 mg before. [D1]\n<followups>\n- When do I take it?\n</followups>"
 )
+
+
+def run_result(**changes) -> RunResult:
+    fields = {
+        "version": "v7+graph", "case_id": "S1", "patient": "P1", "run": 1,
+        "expected": "Just answer", "got": "Just answer", "facts_found": 1, "facts_total": 1,
+        "forbidden": [], "checks": [], "words": 10, "unsupported": None, "error": None,
+        "answer": "ok",
+    }  # fmt: skip
+    return RunResult(**{**fields, **changes})
 
 
 def case(case_id: str) -> dict:
@@ -234,3 +246,158 @@ def test_the_engine_is_closed_before_the_folder_is_removed_even_when_the_run_fai
         run(FakeLLM(), "T6")
 
     assert events == ["dispose", "folder removed"]
+
+
+# --- the eval explains its misses: what happened inside the graph, per run ---
+
+
+def test_a_traced_run_records_the_gate_route_tools_and_timing():
+    llm = FakeLLM()
+    script_ordinary_question(llm, GOOD_S1)
+
+    [result] = run(llm, "S1")
+
+    assert result.gate_tier == 3 and result.decided_by == "classifier"
+    assert result.classifier_failures == 0
+    assert result.route == "MEDICINE" and result.tool_names == ["search_patient_document"]
+    assert result.attempts == 1 and isinstance(result.total_ms, int)
+    assert result.fallback_reason is None and result.fallback_detail is None
+
+
+def test_an_emergency_is_traced_as_the_rules_with_no_route_or_tools():
+    [result] = run(FakeLLM(), "T6")
+
+    assert result.gate_tier == 1 and result.decided_by == "rules"
+    assert result.classifier_failures == 0 and result.route == "NONE"
+    assert result.tool_names == [] and result.attempts == 0
+
+
+def test_a_failed_safety_reading_is_counted_and_makes_the_tier_2():
+    llm = FakeLLM()
+    llm.queue_reply(say("TIER 3"))
+    llm.queue_reply(say("TIER 3"))
+    llm.queue_reply(LLMUnavailable("down"))
+    llm.queue_extraction(LLMUnavailable("down"))
+    llm.queue_reply(LLMUnavailable("down"))
+
+    [result] = run(llm, "S1")
+
+    assert result.classifier_failures == 1 and result.gate_tier == 2
+
+
+def test_a_model_failure_records_only_the_error_class_never_its_message():
+    llm = FakeLLM()
+    for _ in range(3):
+        llm.queue_reply(say("TIER 3"))
+    llm.queue_extraction(LLMUnavailable("secret patient text"))
+    llm.queue_reply(LLMUnavailable("secret patient text"))
+
+    [result] = run(llm, "S1")
+
+    assert result.fallback_reason == "model_error"
+    assert result.fallback_detail == "LLMUnavailable"
+    assert "secret" not in str(result)
+
+
+def test_a_model_error_through_the_graph_carries_the_detail_but_not_the_message():
+    llm = FakeLLM()
+    for _ in range(3):
+        llm.queue_reply(say("TIER 3"))
+    llm.queue_extraction(LLMUnavailable("secret patient text", detail="LLMUnavailable status=529"))
+    llm.queue_reply(
+        LLMError("secret patient text", detail="LLMError status=400 type=invalid_request_error")
+    )
+
+    [result] = run(llm, "S1")
+
+    assert result.fallback_reason == "model_error"
+    assert result.fallback_detail == "LLMError status=400 type=invalid_request_error"
+    assert "secret" not in str(result)
+
+
+def test_eval_output_stays_well_formed_with_a_long_detail(tmp_path):
+    detail = "LLMError status=400 type=invalid_request_error msg=" + "credit balance too low " * 7
+    detail = detail[:199] + "…"
+    results = [
+        run_result(gate_tier=2, fallback_reason="model_error", fallback_detail=detail)
+        for _ in range(2)
+    ] + [
+        run_result(
+            gate_tier=2, fallback_reason="model_error", fallback_detail="LLMRefused stop=refusal"
+        ),
+        run_result(gate_tier=3, fallback_reason="model_error", fallback_detail="a | b\nc"),
+    ]
+
+    write_csv(results, tmp_path / "a.csv")
+    summary = summarize(results)
+
+    rows = list(csv.reader((tmp_path / "a.csv").open(encoding="utf-8", newline="")))
+    assert {len(row) for row in rows} == {len(rows[0])}
+    assert rows[1][rows[0].index("fallback_detail")] == detail
+    assert "| model_error (LLMError) | 2 |" in summary
+    assert "| model_error (LLMRefused) | 1 |" in summary
+    assert "### Distinct error details" in summary and f"- 2 x {detail}" in summary
+    by_run = [line for line in summary.splitlines() if line.startswith("| S1 | 1 |")]
+    assert {line.count("|") for line in by_run} == {by_run[0].count("|")}
+    assert "a | b" not in summary
+
+
+def test_the_csv_has_the_trace_columns_only_for_a_traced_run(tmp_path):
+    traced = run_result(
+        gate_tier=2, decided_by="classifier", classifier_failures=1, route="MEDICINE",
+        tool_names=["search_patient_document", "get_confirmed_medicines"], attempts=2,
+        fallback_reason="model_error", fallback_detail="LLMUnavailable", total_ms=1234,
+    )  # fmt: skip
+
+    write_csv([traced], tmp_path / "a.csv")
+    write_csv([run_result()], tmp_path / "b.csv")
+
+    (row,) = list(csv.DictReader((tmp_path / "a.csv").open(encoding="utf-8")))
+    assert row["gate_tier"] == "2" and row["decided_by"] == "classifier"
+    assert row["classifier_failures"] == "1" and row["route"] == "MEDICINE"
+    assert row["tool_names"] == "search_patient_document get_confirmed_medicines"
+    assert row["attempts"] == "2" and row["total_ms"] == "1234"
+    assert row["fallback_reason"] == "model_error" and row["fallback_detail"] == "LLMUnavailable"
+    assert "gate_tier" not in (tmp_path / "b.csv").read_text(encoding="utf-8").splitlines()[0]
+
+
+def test_the_summary_counts_fallbacks_by_reason_and_totals_classifier_failures():
+    results = [
+        run_result(gate_tier=3, classifier_failures=0, fallback_reason="timeout"),
+        run_result(
+            gate_tier=2, classifier_failures=2, fallback_reason="model_error",
+            fallback_detail="LLMUnavailable",
+        ),
+        run_result(
+            gate_tier=2, classifier_failures=1, fallback_reason="model_error",
+            fallback_detail="LLMUnavailable",
+        ),
+        run_result(gate_tier=3, classifier_failures=0, fallback_reason="validators"),
+        run_result(gate_tier=3, classifier_failures=0),
+    ]  # fmt: skip
+
+    summary = summarize(results)
+
+    assert "| timeout | 1 |" in summary and "| tool_limit | 0 |" in summary
+    assert "| model_error (LLMUnavailable) | 2 |" in summary
+    assert "| validators | 1 |" in summary and "| error | 0 |" in summary
+    assert "Classifier failures** (a failed safety reading counts as Tier 2): 3 in 2 of 5" in (
+        summary
+    )
+    assert "## By run" in summary and "| Gate tier |" in summary
+
+
+def test_a_prompt_only_summary_has_no_trace_tables():
+    assert "Fallbacks by reason" not in summarize([run_result()])
+
+
+def test_the_header_shows_the_parallel_workers_and_the_default_is_4(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(full_path, "run_full_path", lambda *a, **k: [])
+    monkeypatch.setattr(eval_module, "RESULTS_DIR", tmp_path)
+    monkeypatch.setattr(eval_module, "get_llm", lambda: FakeLLM())
+
+    eval_module.main(["--full-path", "--only", "T6", "--workers", "2"])
+    assert "Parallel workers: 2" in capsys.readouterr().out
+
+    eval_module.main(["--full-path", "--only", "T6"])
+    assert "Parallel workers: 4" in capsys.readouterr().out

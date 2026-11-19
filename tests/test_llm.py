@@ -6,12 +6,15 @@ import pytest
 from pydantic import BaseModel
 
 from app.llm import (
+    DETAIL_MAX_CHARS,
     AnthropicLLM,
     LLMError,
     LLMOutputError,
     LLMRefused,
     LLMUnavailable,
     ToolCall,
+    _call,
+    _check_stop,
     get_llm,
 )
 
@@ -171,3 +174,87 @@ def test_without_an_api_key_there_is_no_llm(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "")
     with pytest.raises(LLMUnavailable, match="ANTHROPIC_API_KEY"):
         get_llm()
+
+
+# --- the safe `detail` that explains a failed call (fake errors only) ---
+
+
+def status_error(status: int, message: str, error_type: str = "invalid_request_error"):
+    body = {"type": "error", "error": {"type": error_type, "message": message}}
+    request = httpx2.Request(
+        "POST",
+        "https://api.anthropic.com/v1/messages",
+        headers={"x-api-key": "sk-ant-HEADERKEY999"},
+        content=b"PROMPT_MARKER_XYZ patient says hello",
+    )
+    response = httpx2.Response(status, json=body, request=request)
+    return anthropic.APIStatusError(message, response=response, body=body)
+
+
+def failing_call(error: Exception):
+    def call(**_params):
+        raise error
+
+    return call
+
+
+def detail_of(error: Exception) -> str:
+    with pytest.raises(LLMError) as caught:
+        _call(failing_call(error))
+    return caught.value.detail
+
+
+def test_a_rejected_request_explains_status_type_and_message():
+    detail = detail_of(status_error(400, "Your credit balance is too low"))
+
+    assert detail == (
+        "APIStatusError status=400 type=invalid_request_error msg=Your credit balance is too low"
+    )
+
+
+def test_the_detail_is_one_line_without_pipes_commas_or_keys():
+    detail = detail_of(status_error(400, "bad\nkey sk-ant-FAKEKEY123 | a, b\r\n  c"))
+
+    assert "\n" not in detail and "\r" not in detail
+    assert "|" not in detail and "," not in detail
+    assert "sk-ant-FAKEKEY123" not in detail and "FAKEKEY" not in detail
+    assert "[redacted-key]" in detail
+
+
+def test_a_very_long_message_is_cut_to_the_limit():
+    detail = detail_of(status_error(400, "word " * 500))
+
+    assert len(detail) == DETAIL_MAX_CHARS and detail.endswith("…")
+
+
+def test_the_request_prompt_and_headers_never_get_into_the_detail():
+    error = status_error(401, "invalid x-api-key", error_type="authentication_error")
+
+    detail = detail_of(error)
+
+    assert "PROMPT_MARKER_XYZ" not in detail and "patient says hello" not in detail
+    assert "HEADERKEY999" not in detail
+    assert "status=401" in detail and "authentication_error" in detail
+
+
+def test_a_server_error_is_unavailable_and_keeps_its_detail():
+    with pytest.raises(LLMUnavailable) as caught:
+        _call(failing_call(status_error(529, "Overloaded", error_type="overloaded_error")))
+
+    assert "status=529" in caught.value.detail and "overloaded_error" in caught.value.detail
+
+
+def test_the_detail_is_optional_and_defaults_to_the_class_name():
+    assert LLMError("x").detail == "LLMError"
+    assert LLMUnavailable("secret text").detail == "LLMUnavailable"
+    assert LLMRefused().detail == "LLMRefused" and LLMOutputError("y").detail == "LLMOutputError"
+
+
+def test_a_refusal_and_a_cut_off_reply_have_fixed_details():
+    with pytest.raises(LLMRefused) as refused:
+        _check_stop("refusal")
+    with pytest.raises(LLMOutputError) as cut:
+        _check_stop("max_tokens")
+
+    assert refused.value.detail == "LLMRefused stop=refusal"
+    assert cut.value.detail == "LLMOutputError stop=max_tokens"
