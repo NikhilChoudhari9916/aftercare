@@ -24,6 +24,7 @@ MAX_CONVERSATIONS = 500  # a hard cap so the server cannot grow without bound
 class Turn:
     question: str
     answer: str
+    focus_medicine: str | None = None  # resolved for this turn, never copied from answer prose
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,9 @@ class SessionMemory:
             if entry is None:
                 entry = _Entry(deque(maxlen=self._max_turns), None, self._clock())
                 self._items[key] = entry
-            entry.turns.append(Turn(question=question, answer=answer))
+            entry.turns.append(
+                Turn(question=question, answer=answer, focus_medicine=focus_medicine)
+            )
             if focus_medicine:
                 entry.focus_medicine = focus_medicine
             entry.last_used = self._clock()

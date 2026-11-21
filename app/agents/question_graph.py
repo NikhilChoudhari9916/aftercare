@@ -31,9 +31,11 @@ from app.extraction.schema import ExtractedContact
 from app.llm import LLM, LLMError, LLMResponse
 from app.memory.session import Recall
 from app.qa.answer_text import cited_ids, parse_answer, plain_text
+from app.qa.grounding import SAFE_FOLLOWUPS, check_paper_support
 from app.qa.prompts import fill_prompt
+from app.qa.references import resolve_reference
 from app.qa.sources import PAPERS, SourceBook
-from app.qa.validators import ValidationResult, fallback_message, validate_answer
+from app.qa.validators import Check, Failure, ValidationResult, fallback_message, validate_answer
 from app.safety.gate import GateResult
 from app.safety.messages import TIER1_MESSAGE, care_team_line
 from app.safety.rules import Tier
@@ -42,27 +44,24 @@ from app.tools.registry import ToolContext, ToolRegistry
 
 logger = logging.getLogger(__name__)
 
-# The medication agent may use these four tools and no others (CLAUDE.md section 4).
+# Only confirmed-paper tools may contribute answer evidence (ADR-0045).
 MEDICATION_TOOLS = (
     "get_confirmed_medicines",
     "search_patient_document",
-    "search_fda_label",
-    "lookup_rxnorm",
 )
 MAX_ATTEMPTS = 2  # the first answer, and one retry that tells the model what failed
 RECENT_TURNS = 4  # how much of the conversation the router may read
 RECURSION_LIMIT = 60  # LangGraph's own safety stop; the real limits are in Settings
 
 NO_SOURCES_YET = (
-    "(No sources yet. Use the search tools: passages come back labeled D1, D2, ... "
-    "and drug labels come back labeled L1, L2, ...)"
+    "(No sources yet. Search the confirmed uploaded papers for passages labeled D1, D2, ... .)"
 )
 SCHEDULE_REPLY = (
     "Your reminder times are on your Schedule page. You can also download a calendar file there."
 )
 OUT_OF_SCOPE_REPLY = (
-    "I can help with your discharge papers, your medicines, and your follow-up care. "
-    "For anything else, please ask your care team or your pharmacist."
+    "I can help explain your confirmed uploaded discharge papers. "
+    "That question is outside this scope."
 )
 
 
@@ -215,6 +214,7 @@ def _first_message(question: str, tier: Tier) -> str:
 
 def build_question_graph(deps: QuestionDeps):
     settings = deps.settings
+    registry = deps.registry.only(name for name in MEDICATION_TOOLS if name in deps.registry.names)
 
     def safety_gate(state: QuestionState) -> dict[str, Any]:
         begun = deps.clock()
@@ -246,7 +246,7 @@ def build_question_graph(deps: QuestionDeps):
         }
 
     def router(state: QuestionState) -> dict[str, Any]:
-        question = state["question"]
+        question, explicit_focus = resolve_reference(deps.profile, state["question"], deps.recall)
         try:
             decision = deps.llm.extract(
                 model=settings.model_fast,
@@ -263,11 +263,9 @@ def build_question_graph(deps: QuestionDeps):
         if state["tier"] == Tier.CARE_TEAM:
             route = "MEDICINE"  # a symptom always gets the care-team answer
 
-        rewritten = decision.rewritten_question.strip()
-        too_long = len(rewritten) > settings.max_question_chars
-        if not rewritten or too_long or len(rewritten) > 3 * len(question) + 80:
-            rewritten = question  # a rewrite that grew a lot is not a rewrite
-        focus = known_medicine(deps.profile, decision.focus_medicine) or deps.recall.focus_medicine
+        # The model routes, but may not add facts or remove symptoms in a rewrite.
+        rewritten = question
+        focus = explicit_focus
         update: dict[str, Any] = {
             "route": route,
             "agent_question": rewritten,
@@ -308,7 +306,7 @@ def build_question_graph(deps: QuestionDeps):
                 model=settings.model_main,
                 system=system,
                 messages=state["messages"],
-                tools=deps.registry.specs(),
+                tools=registry.specs(),
                 max_tokens=settings.answer_max_tokens,
             )
         except LLMError as error:
@@ -322,7 +320,7 @@ def build_question_graph(deps: QuestionDeps):
 
     def run_tool(name: str, raw_input: dict[str, Any]) -> dict[str, Any]:
         try:
-            return deps.registry.run(name, raw_input, deps.tools)
+            return registry.run(name, raw_input, deps.tools)
         except Exception as error:  # noqa: BLE001  (a broken tool must not end the conversation)
             logger.error("tool %s failed: %s", name, type(error).__name__)
             return {"ok": False, "error": "That tool did not work. Answer without it."}
@@ -369,6 +367,30 @@ def build_question_graph(deps: QuestionDeps):
             settings=settings,
             evidence=sources.evidence,
         )
+        if result.passed and tier != Tier.EMERGENCY:
+            if deps.clock() - state["started"] > settings.agent_timeout_seconds:
+                return {
+                    "validation": ValidationResult(
+                        failures=[
+                            Failure(
+                                check=Check.UNSUPPORTED_CLAIM,
+                                detail="The time limit was reached before paper support "
+                                "could be checked.",
+                            )
+                        ]
+                    ),
+                    "stop": "timeout",
+                    "attempts": state["attempts"] + 1,
+                    "failed_checks": [*state["failed_checks"], Check.UNSUPPORTED_CLAIM.value],
+                }
+            result = check_paper_support(
+                raw,
+                profile=deps.profile,
+                retrieved=sources.texts,
+                llm=deps.llm,
+                settings=settings,
+                searched_papers=sources.paper_search_completed,
+            )
         return {
             "validation": result,
             "attempts": state["attempts"] + 1,
@@ -376,6 +398,8 @@ def build_question_graph(deps: QuestionDeps):
         }
 
     def after_validators(state: QuestionState) -> str:
+        if state.get("stop") == "timeout":
+            return "fallback"
         if state["validation"].passed:
             return "finalize"
         return "retry" if state["attempts"] < MAX_ATTEMPTS else "fallback"
@@ -406,7 +430,9 @@ def build_question_graph(deps: QuestionDeps):
         return {
             "outcome": "emergency" if said_911 else "answered",
             "reply": parsed.visible,
-            "followups": [] if said_911 else parsed.followups[:3],
+            "followups": []
+            if said_911
+            else [q for q in parsed.followups if q in SAFE_FOLLOWUPS][:3],
             "cited": cited,
         }
 

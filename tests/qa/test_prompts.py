@@ -59,3 +59,16 @@ def test_a_prompt_file_missing_a_placeholder_is_refused(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="retrieved_sources"):
         load_answer_prompt("v1")
+
+
+def test_current_answer_policy_is_papers_only_and_has_explicit_abstentions():
+    prompt = load_answer_prompt(make_settings().answer_prompt_version)
+    assert make_settings().answer_prompt_version == "v11"
+    for phrase in (
+        "ONLY the patient's confirmed uploaded discharge papers",
+        "No external drug labels",
+    ):
+        assert phrase in prompt
+    assert "Your uploaded papers don't explain what this medicine is for." in prompt
+    assert "Memory may identify" in prompt
+    assert "Never cite [L#]" in prompt

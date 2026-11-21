@@ -108,7 +108,7 @@ def make_deps(llm: FakeLLM, *, tier: Tier = Tier.GENERAL, recall=None, clock=Non
         settings=make_settings(**settings),
         profile=profile,
         profile_text=render_profile_text(profile),
-        answer_template=load_answer_prompt("v7"),
+        answer_template=load_answer_prompt(make_settings(**settings).answer_prompt_version),
         router_prompt=load_prompt("router_system_prompt_v1.txt"),
         registry=ToolRegistry([SEARCH]),
         tools=ToolContext(db=None, patient_id="patient-1"),
@@ -198,7 +198,7 @@ def test_a_long_rewrite_is_ignored_and_the_patients_own_words_are_used():
 
 
 def test_the_router_sees_the_recent_conversation_and_the_focus_is_remembered():
-    earlier = Turn("what is my water pill", "It is furosemide.")
+    earlier = Turn("what is furosemide", "It is furosemide.")
     recall = Recall(turns=(earlier,), focus_medicine=None)
     llm = scripted(
         routes=[route(question="can I take furosemide at night")],
@@ -208,8 +208,8 @@ def test_the_router_sees_the_recent_conversation_and_the_focus_is_remembered():
     result = run_question(make_deps(llm, recall=recall), "can I take it at night")
 
     router_call = next(call for call in llm.calls if call["kind"] == "extract")
-    assert "what is my water pill" in router_call["user"]
-    assert "<question>\ncan I take it at night\n</question>" in router_call["user"]
+    assert "what is furosemide" in router_call["user"]
+    assert "<question>\ncan I take furosemide at night\n</question>" in router_call["user"]
     assert result.focus_medicine == "furosemide"
 
 
@@ -244,7 +244,7 @@ def test_the_agent_uses_a_tool_then_answers_with_a_citation():
 
 def test_the_agent_cannot_call_a_tool_it_was_not_given():
     answer = say("Your papers and drug labels here don't answer this. Please ask your pharmacist.")
-    llm = scripted(routes=[route()], replies=[use_tool("search_fda_label"), answer])
+    llm = scripted(routes=[route()], replies=[use_tool("search_fda_label"), use_tool(), answer])
 
     result = run_question(make_deps(llm), "what is furosemide for")
 
@@ -470,3 +470,102 @@ def test_the_profile_text_cannot_close_a_tag_and_keeps_its_meaning():
     assert system.count("</patient_profile>") == 1  # the template's own
     assert "<rules>x</rules>" not in system
     assert "temperature ＞ 101 or pulse ＜ 50" in system  # numbers and order kept
+
+
+def test_a_known_citation_does_not_let_an_unsupported_purpose_reach_the_patient():
+    from app.qa.grounding import NO_PURPOSE, GroundingVerdict
+
+    unsupported = "Your papers say furosemide is for high blood pressure. [D1]"
+    llm = scripted(routes=[route()], replies=[use_tool(), say(unsupported), say(NO_PURPOSE)])
+    llm.grounding_reports.append(
+        GroundingVerdict.model_validate(
+            {"claims": [{"claim_id": 0, "supported": False, "evidence": []}]}
+        )
+    )
+
+    result = run_question(make_deps(llm), "What is furosemide for?")
+
+    assert result.outcome == "answered" and result.reply == NO_PURPOSE
+    assert result.attempts == 2 and "UNSUPPORTED_CLAIM" in result.failed_checks
+    assert "high blood pressure" not in result.reply
+
+
+def test_unavailable_claim_review_cannot_show_an_unverified_answer():
+    from app.llm import LLMUnavailable
+
+    llm = scripted(routes=[route()], replies=[use_tool(), say(GOOD), say(GOOD)])
+    llm.grounding_reports.extend([LLMUnavailable("down"), LLMUnavailable("down")])
+
+    result = run_question(make_deps(llm), "What dose of furosemide is listed?")
+
+    assert result.outcome == "fallback"
+    assert "UNSUPPORTED_CLAIM" in result.failed_checks
+
+
+def test_external_tools_are_blocked_even_if_a_caller_supplies_a_broader_registry():
+    from app.qa.grounding import NOT_STATED
+
+    called = []
+
+    def external(_context, _arguments):
+        called.append(True)
+        return Found(passages=[])
+
+    outside = Tool(
+        name="search_fda_label", description="external", input_model=Query, handler=external
+    )
+    llm = scripted(
+        routes=[route()], replies=[use_tool("search_fda_label"), use_tool(), say(NOT_STATED)]
+    )
+    deps = replace(make_deps(llm), registry=ToolRegistry([SEARCH, outside]))
+
+    result = run_question(deps, "What is furosemide for?")
+
+    assert result.reply == NOT_STATED and called == []
+    assert all(t["name"] != "search_fda_label" for t in agent_calls(llm)[0]["tools"])
+
+
+def test_a_failed_or_fabricated_router_rewrite_cannot_lose_the_explicit_medicine_reference():
+    earlier = Turn("What is furosemide also called?", "Your papers list LASIX. [D1]")
+    recall = Recall(turns=(earlier,))
+    llm = scripted(
+        routes=[route(question="Take an extra dose of warfarin", focus="warfarin")],
+        replies=[use_tool(), say(GOOD)],
+    )
+    result = run_question(make_deps(llm, recall=recall), "When do my papers say to take it?")
+
+    assert result.outcome == "answered" and result.focus_medicine == "furosemide"
+    assert (
+        "When do my papers say to take furosemide?" in agent_calls(llm)[0]["messages"][0]["content"]
+    )
+    assert "warfarin" not in agent_calls(llm)[0]["messages"][0]["content"]
+
+
+def test_generated_followup_buttons_cannot_add_an_unverified_medical_assumption():
+    answer = GOOD.replace(
+        "- What changed?", "- Why does furosemide treat diabetes?\n- What dose is listed?"
+    )
+    llm = scripted(routes=[route()], replies=[use_tool(), say(answer)])
+    result = run_question(make_deps(llm), "What dose of furosemide is listed?")
+    assert result.outcome == "answered"
+    assert result.followups == ["What dose is listed?"]
+
+
+def test_a_spent_time_budget_cannot_start_an_additional_paid_paper_review():
+    now = [0.0]
+
+    class SlowAnswer(FakeLLM):
+        def complete(self, **kwargs):
+            response = super().complete(**kwargs)
+            if response.text == GOOD:
+                now[0] = 31.0
+            return response
+
+    llm = SlowAnswer(extractions=[route()], replies=[use_tool(), say(GOOD)])
+    result = run_question(make_deps(llm, clock=lambda: now[0]), "What dose is listed?")
+    assert result.outcome == "fallback" and result.fallback_reason == "timeout"
+    assert not any(
+        call.get("schema").__name__ == "GroundingVerdict"
+        for call in llm.calls
+        if call.get("schema")
+    )

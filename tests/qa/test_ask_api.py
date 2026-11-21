@@ -135,9 +135,9 @@ def test_a_second_question_can_say_it_and_the_first_one_is_remembered(
 
     ask(client, confirmed_patient, "Can I take it at night?")
 
-    second_router_call = [call for call in llm.calls if call["kind"] == "extract"][-1]
+    second_router_call = [call for call in llm.calls if call.get("schema") is Route][-1]
     assert "What is furosemide for?" in second_router_call["user"]
-    assert "Can I take it at night?" in second_router_call["user"]
+    assert "Can I take furosemide at night?" in second_router_call["user"]
 
 
 def test_an_emergency_is_not_remembered(
@@ -149,7 +149,7 @@ def test_an_emergency_is_not_remembered(
 
     ask(client, confirmed_patient)
 
-    router_call = [call for call in llm.calls if call["kind"] == "extract"][-1]
+    router_call = [call for call in llm.calls if call.get("schema") is Route][-1]
     assert "<recent_conversation>\n(none)\n</recent_conversation>" in router_call["user"]
 
 

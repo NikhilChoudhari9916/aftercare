@@ -1,5 +1,16 @@
 # AfterCare: project context for Claude Code
 
+**Current answer-source policy (ADR-0045, user-directed 2026-11-21):** Clinical answers use only
+confirmed uploaded papers. FDA, RxNorm, MedlinePlus, general model knowledge and prior answers
+are not answer evidence. Older sections describing external answer sources are superseded by
+ADR-0045. Memory may identify a medicine reference but may not supply clinical facts. The agent
+gets only confirmed-medicine and patient-document tools. Every factual sentence needs its own
+retrieved D citation, followed by fail-closed claim-support verification. Missing information
+gets a clear not-stated response. Fixed emergency handling is unchanged. Answer prompt v11 and
+paper-support prompt v1 implement this policy; full live before/after prompt evaluation remains
+pending under the user's maximum $2 spending limit.
+
+
 Read this whole file before doing anything. It records decisions already made with the team. Don't reverse them without asking.
 
 **Where the project stands:** read [`docs/handoff.md`](docs/handoff.md) next. It lists what is built, what remains (in build order), the decisions waiting for a teammate, and the known limits. **Answer prompts v7 and v8 have not been run on the real model yet**, and v9 (the `[T#]` tag) is not written: test and validate them with `python -m tests.eval.run_eval` (section 8) before building on them or changing `answer_prompt_version`.

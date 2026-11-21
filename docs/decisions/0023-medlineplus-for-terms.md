@@ -1,6 +1,6 @@
 # ADR-0023: MedlinePlus as the cited source for plain-language term definitions
 
-- **Status:** Accepted
+- **Status:** Partly superseded by ADR-0045 (answer evidence restricted to uploaded papers)
 - **Date:** 2026-10-31
 - **Deciders:** team
 - **Supersedes:** none

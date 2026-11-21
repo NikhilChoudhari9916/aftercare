@@ -111,8 +111,6 @@ def test_an_ordinary_question_goes_through_router_search_and_validators():
     assert {tool["name"] for tool in answer_calls[0]["tools"]} == {
         "get_confirmed_medicines",
         "search_patient_document",
-        "search_fda_label",
-        "lookup_rxnorm",
     }
 
 

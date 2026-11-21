@@ -1,6 +1,6 @@
 # ADR-0002: Scope — explain only, adults, first 30 days, synthetic data
 
-- **Status:** Accepted
+- **Status:** Partly superseded by ADR-0045 (answer evidence restricted to uploaded papers)
 - **Date:** 2026-10 (recorded 2026-10-31)
 - **Deciders:** team
 - **Supersedes:** none

@@ -18,6 +18,7 @@ class SourceBook:
         self.meta: dict[str, dict[str, Any]] = {}  # id -> where it came from, for the UI
         self.evidence: list[str] = []  # other text that may justify a time, such as the schedule
         self._label_ids: dict[str, str] = {}
+        self.paper_search_completed = False
 
     def add_tool_result(self, name: str, result: dict[str, Any]) -> dict[str, Any]:
         """Record a tool's result and return what to hand back to the model.
@@ -29,6 +30,7 @@ class SourceBook:
         data = result.get("data", {})
 
         if name == "search_patient_document":
+            self.paper_search_completed = True
             for passage in data.get("passages", []):
                 self.texts[passage["id"]] = passage["text"]
                 self.meta[passage["id"]] = {

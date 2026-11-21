@@ -74,3 +74,13 @@ def test_a_failed_tool_result_is_returned_unchanged():
 
     assert book.add_tool_result("search_patient_document", failed) is failed
     assert book.texts == {}
+
+
+def test_only_a_successful_paper_search_can_establish_that_the_papers_were_checked():
+    from app.qa.sources import SourceBook
+
+    sources = SourceBook()
+    sources.add_tool_result("search_patient_document", {"ok": False, "error": "unavailable"})
+    assert not sources.paper_search_completed
+    sources.add_tool_result("search_patient_document", {"ok": True, "data": {"passages": []}})
+    assert sources.paper_search_completed

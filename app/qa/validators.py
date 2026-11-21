@@ -25,6 +25,7 @@ MIN_NAME_LENGTH = 4  # a shorter name would match inside ordinary words
 
 class Check(StrEnum):
     EMPTY = "EMPTY"
+    UNSUPPORTED_CLAIM = "UNSUPPORTED_CLAIM"
     NOT_EMERGENCY_TEXT = "NOT_EMERGENCY_TEXT"
     UNKNOWN_CITATION = "UNKNOWN_CITATION"
     UNCITED_FACT = "UNCITED_FACT"
@@ -171,6 +172,7 @@ def _sentences(visible: str) -> list[str]:
     """Sentences as the patient reads them, each with its [D1] tag kept at the end."""
     flat = re.sub(r"\b([ap])\.m\.", r"\1m", visible.replace("**", ""), flags=re.IGNORECASE)
     flat = re.sub(r"\b(Dr|Mr|Mrs|Ms|St)\.", r"\1", flat)
+    flat = re.sub(r"\b([A-Z])\.(?=\s+[A-Z][a-z])", r"\1", flat)  # A. Rivera is one name
     flat = re.sub(r"(?m)^\s*\d+\.\s+", "", flat)  # "1. " at the start of a numbered line
     # Split after a sentence end, unless a [D1] tag follows (it belongs to that sentence), and
     # after a tag that is followed by a new sentence ("... pill. [D1] Take it daily.").

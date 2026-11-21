@@ -1,6 +1,6 @@
 # AfterCare
 
-A Python web app that helps adults (18+) and their caregivers understand their own hospital discharge papers during the first 30 days at home. It **explains** what the papers, official FDA drug labels, and MedlinePlus plain-language definitions say, with short cited answers. It never diagnoses or tells anyone to change a medicine.
+A Python web app that helps adults (18+) and their caregivers understand their own hospital discharge papers during the first 30 days at home. It **explains only the confirmed uploaded papers**, with short cited answers. External references and general model knowledge are not answer evidence (ADR-0045). It never diagnoses or tells anyone to change a medicine.
 
 Graduate course project (INFO 7375, Building AI Applications). **Synthetic data only. Not medical advice.**
 
