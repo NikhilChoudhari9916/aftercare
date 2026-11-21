@@ -11,7 +11,7 @@ from app.extraction.schema import (
     ExtractedMedication,
     ExtractedWarningSign,
 )
-from app.models import ProfileItem, ProfileStatus, ProfileVersion
+from app.models import ProfileItem, ProfileStatus, ProfileVersion, RetrievalState
 
 
 class ConfirmedProfile(BaseModel):
@@ -62,8 +62,18 @@ def load_confirmed_profile(db: Session, patient_id: str) -> ConfirmedProfile | N
         .order_by(ProfileItem.section, ProfileItem.position)
     ).all()
 
+    state = db.get(RetrievalState, version.id)
+    original_text_allowed = (
+        state is not None and state.patient_id == patient_id and state.include_document_text
+    )
+
     def section(name: str) -> list[dict]:
-        return [json.loads(item.data) for item in items if item.section == name]
+        data = [json.loads(item.data) for item in items if item.section == name]
+        if not original_text_allowed:
+            # Confirmation can correct a field without changing its old source quote. Keep
+            # that quote in storage for review, but never give it to tools or validators.
+            data = [{**entry, "source_quote": ""} for entry in data]
+        return data
 
     def ids(name: str) -> list[str]:
         return [item.id for item in items if item.section == name]

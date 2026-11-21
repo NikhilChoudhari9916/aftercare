@@ -352,3 +352,67 @@ def test_a_stranger_still_gets_404_for_an_emergency_question(
     sign_in(stranger, provider, sub="stranger", email="s@example.com")
 
     assert ask(stranger, confirmed_patient, "my chest hurts really badly").status_code == 404
+
+
+@pytest.mark.parametrize("dose,expected", [("37 mg", "answered"), ("25 mg", "fallback")])
+def test_a_corrected_dose_is_the_only_dose_accepted_through_ask(
+    client, db, ready, llm, dose, expected
+):
+    from app.tools import ToolContext, default_registry
+    from tests.documents.test_upload_api import decide_all
+
+    patient_id, extraction = ready
+    item = next(
+        i
+        for i in extraction["items"]
+        if i["section"] == "medicines" and i["data"]["name_as_written"] == "metoprolol succinate ER"
+    )
+    edited = {**item["data"], "dose": "37 mg"}
+    assert (
+        client.put(
+            f"/patients/{patient_id}/profile",
+            json=decide_all(extraction, **{item["id"]: {"data": edited}}),
+        ).status_code
+        == 200
+    )
+    result = default_registry().run(
+        "get_confirmed_medicines", {}, ToolContext(db=db, patient_id=patient_id)
+    )
+    assert result["ok"]
+    assert "25 mg" not in str(result)
+    ref = next(
+        c.ref
+        for c in db.exec(select(Chunk).where(Chunk.patient_id == patient_id)).all()
+        if c.text.startswith("metoprolol")
+    )
+    for _ in range(3):
+        llm.queue_reply(reply("TIER 3"))
+    llm.queue_extraction(
+        Route(route="MEDICINE", rewritten_question="What dose of metoprolol is listed?")
+    )
+    llm.queue_reply(tool_call("metoprolol"))
+    answer = f"Your discharge papers say metoprolol is {dose} once a day. [{ref}]"
+    llm.queue_reply(reply(answer))
+    if expected == "fallback":
+        llm.queue_reply(reply(answer))
+
+    body = ask(client, patient_id, "What dose of metoprolol is listed?").json()
+
+    assert body["outcome"] == expected
+    row = db.exec(select(QALog).where(QALog.patient_id == patient_id)).one()
+    if expected == "answered":
+        assert "37 mg" in body["answer"]
+    else:
+        assert row.attempts == 2 and "DOSE" in row.validator_checks
+    agent_calls = [c for c in llm.calls if c["kind"] == "complete" and c["tools"]]
+    assert agent_calls and all("25 mg" not in c["system"] for c in agent_calls)
+    # Retry feedback quotes the rejected answer; only approved evidence must exclude it.
+    tool_results = [
+        block["content"]
+        for call in agent_calls
+        for message in call["messages"]
+        if message["role"] == "user" and isinstance(message["content"], list)
+        for block in message["content"]
+        if block.get("type") == "tool_result"
+    ]
+    assert tool_results and all("25 mg" not in str(result) for result in tool_results)

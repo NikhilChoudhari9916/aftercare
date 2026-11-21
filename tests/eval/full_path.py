@@ -43,6 +43,7 @@ from app.models import (
     ProfileItem,
     ProfileStatus,
     ProfileVersion,
+    RetrievalState,
     User,
 )
 from app.prompts import load_prompt
@@ -155,6 +156,15 @@ def _add_patient(db: Session, key: str) -> tuple[str, SourceLabels]:
                 )
             )
 
+    # These fixed synthetic sources represent an already-confirmed, unchanged profile.
+    db.add(
+        RetrievalState(
+            patient_id=patient.id,
+            profile_version_id=version.id,
+            include_document_text=True,
+            ready=True,
+        )
+    )
     ids, texts = load_sources(f"data/synthetic/patient{key.removeprefix('P')}_sources.txt")
     labels: dict[str, str] = {}
     for source_id, text in zip(ids, texts, strict=True):

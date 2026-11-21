@@ -41,7 +41,9 @@ def _flat(text: str) -> str:
 
 def run(ranker: Ranker = bm25_rank) -> list[ChunkResult]:
     profile = confirmed()
-    chunks = build_chunks(read_pdf(PDF.read_bytes(), max_pages=30), profile)
+    chunks = build_chunks(
+        read_pdf(PDF.read_bytes(), max_pages=30), profile, include_document_text=True
+    )  # fixed, unchanged synthetic profile: original passages remain approved
     documents = [f"{chunk.section} {chunk.text}" for chunk in chunks]
     groups = [[m.name_as_written, *m.other_names] for m in profile.medicines]
     results = []

@@ -114,7 +114,7 @@ def test_a_medicine_missing_from_the_confirmed_profile_has_no_chunk():
 def test_the_real_patient_1_pdf_is_cut_by_its_sections_without_the_hospital_header():
     pages = read_pdf(PATIENT1_PDF.read_bytes(), max_pages=30)
 
-    chunks = build_chunks(pages, confirmed())
+    chunks = build_chunks(pages, confirmed(), include_document_text=True)
     papers = " ".join(f"{c.section} {c.text}" for c in chunks)
 
     assert {"Why you were in the hospital", "When to call your care team"} <= {
@@ -124,3 +124,18 @@ def test_the_real_patient_1_pdf_is_cut_by_its_sections_without_the_hospital_head
     assert "Limit sodium to less than 2,000 mg per day" in papers
     assert all(len(c.text) <= MAX_CHUNK_CHARS + 120 for c in chunks)
     assert {c.page for c in chunks} == {1, 2, 3}
+
+
+def test_raw_pages_and_old_quotes_are_excluded_without_explicit_approval():
+    profile = confirmed()
+    changed = profile.medicines[0].model_copy(
+        update={"dose": "37 mg", "source_quote": "unapproved old dose 999 mg"}
+    )
+    profile = profile.model_copy(update={"medicines": [changed]})
+    chunks = build_chunks(
+        [Page(1, "Old papers\nRemoved medicine zebradrug 999 mg daily.")], profile
+    )
+    text = " ".join(c.text for c in chunks)
+    assert "37 mg" in text
+    assert "zebradrug" not in text and "999 mg" not in text
+    assert any(c.section == "Food and drink" for c in chunks)

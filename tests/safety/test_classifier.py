@@ -38,6 +38,7 @@ def test_the_reply_is_read_conservatively(text, expected):
     [
         ("TIER 3", Tier.GENERAL),
         ("some thinking\nTIER 3", Tier.GENERAL),
+        ("This is not TIER 1 or TIER 2.\nTIER 3", Tier.GENERAL),
         ("some thinking\n\nTIER 3\n\n\n", Tier.GENERAL),
         (" tier 2 ", Tier.CARE_TEAM),
         ("thinking\r\nTIER 1\r\n", Tier.EMERGENCY),
