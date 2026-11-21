@@ -3,9 +3,9 @@ import time
 import pytest
 
 from app.config import Settings
-from app.llm import LLMUnavailable
+from app.llm import LLMOutputError, LLMUnavailable
 from app.prompts import load_prompt
-from app.safety.classifier import CLASSIFIER_PROMPT, classify, parse_tier
+from app.safety.classifier import CLASSIFIER_PROMPT, MAX_REPLY_TOKENS, classify, parse_tier
 from app.safety.context import PatientSafetyContext, ProfileWarningSign
 from app.safety.rules import Tier
 from tests.auth.helpers import make_settings
@@ -15,14 +15,15 @@ from tests.safety.helpers import llm_saying, patient1, reply
 SETTINGS = make_settings()
 
 
+# The rule was made strict in PR review: only a last non-empty line of exactly "TIER n" counts.
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
         ("TIER 1", Tier.EMERGENCY),
         ("tier 2", Tier.CARE_TEAM),
-        ("  Tier 3.\n", Tier.GENERAL),
-        ("TIER3", Tier.GENERAL),
-        ("TIER 3, but chest pain sounds like TIER 1", Tier.EMERGENCY),
+        ("  Tier 3.\n", None),
+        ("TIER3", None),
+        ("TIER 3, but chest pain sounds like TIER 1", None),
         ("I think it is urgent", None),
         ("TIER 4", None),
         ("", None),
@@ -30,6 +31,48 @@ SETTINGS = make_settings()
 )
 def test_the_reply_is_read_conservatively(text, expected):
     assert parse_tier(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("TIER 3", Tier.GENERAL),
+        ("some thinking\nTIER 3", Tier.GENERAL),
+        ("some thinking\n\nTIER 3\n\n\n", Tier.GENERAL),
+        (" tier 2 ", Tier.CARE_TEAM),
+        ("thinking\r\nTIER 1\r\n", Tier.EMERGENCY),
+        ("TIER   2", Tier.CARE_TEAM),
+    ],
+)
+def test_a_last_line_of_exactly_tier_n_is_read(text, expected):
+    assert parse_tier(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "This is not TIER 1, it is a general question. TIER 3",
+        "Not TIER 2. TIER 3",
+        "TIER 3 (a TIER 2 would need a symptom)",
+        "TIER 3\nthat is my answer",
+        "",
+        "   \n\r\n  ",
+        "no tier given here",
+    ],
+)
+def test_a_reply_that_is_not_exactly_a_tier_line_is_unreadable(text):
+    assert parse_tier(text) is None
+
+
+def test_a_chatty_reply_is_unreadable_counts_as_tier_2_and_is_counted_as_failed():
+    chatty = "This is not TIER 1, it is a general question. TIER 3"
+    llm = llm_saying(chatty, "TIER 3", "TIER 3")
+
+    verdict = classify(llm, SETTINGS, "q", patient1())
+
+    assert verdict.tier == Tier.CARE_TEAM
+    assert verdict.failed == 1
+    assert sorted(verdict.runs) == [Tier.CARE_TEAM, Tier.GENERAL, Tier.GENERAL]
 
 
 def test_the_most_severe_of_three_runs_wins():
@@ -154,3 +197,71 @@ def test_the_prompt_file_keeps_its_one_placeholder_and_the_rules_that_matter():
         "TIER 1, TIER 2, or TIER 3",
     ):
         assert phrase in prompt
+
+
+# --- a reply cut off at the token limit (seen on the real model) ---
+
+
+class RecordingLLM:
+    """Records the limit and effort of each call, and replies from a script."""
+
+    def __init__(self, *replies) -> None:
+        self._replies = list(replies)
+        self.limits: list[int] = []
+        self.efforts: list[str | None] = []
+
+    def complete(self, *, model, system, messages, tools=None, max_tokens=4096, effort=None):
+        self.limits.append(max_tokens)
+        self.efforts.append(effort)
+        item = self._replies.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return reply(item)
+
+
+CUT_OFF = LLMOutputError("the reply was cut off at the token limit")
+
+
+def test_each_reading_has_room_to_think_and_sends_no_effort_setting():
+    llm = RecordingLLM("TIER 3", "TIER 3", "TIER 3")
+
+    classify(llm, SETTINGS, "what is my water pill for", patient1())
+
+    assert llm.limits == [MAX_REPLY_TOKENS] * 3
+    assert MAX_REPLY_TOKENS >= 1000  # 200 cut off a calm two-part question on the real model
+    assert llm.efforts == [None] * 3  # unchanged: no setting the fast model may not accept
+
+
+def test_a_cut_off_reading_still_counts_as_tier_2():
+    llm = RecordingLLM(CUT_OFF, "TIER 3", "TIER 3")
+
+    verdict = classify(llm, SETTINGS, "q", patient1())
+
+    assert verdict.tier == Tier.CARE_TEAM
+    assert verdict.failed == 1
+    assert Tier.CARE_TEAM in verdict.runs
+
+
+def test_three_cut_off_readings_are_tier_2_not_tier_3():
+    verdict = classify(RecordingLLM(CUT_OFF, CUT_OFF, CUT_OFF), SETTINGS, "q", patient1())
+
+    assert verdict.tier == Tier.CARE_TEAM
+    assert verdict.failed == 3
+
+
+@pytest.mark.parametrize(
+    ("readings", "expected", "failed"),
+    [
+        (("TIER 3", "TIER 3", "TIER 3"), Tier.GENERAL, 0),
+        (("TIER 1", "TIER 3", "TIER 3"), Tier.EMERGENCY, 0),
+        (("TIER 2", "TIER 3", "TIER 3"), Tier.CARE_TEAM, 0),
+        ((CUT_OFF, "TIER 3", "TIER 3"), Tier.CARE_TEAM, 1),
+        ((CUT_OFF, "TIER 1", "TIER 3"), Tier.EMERGENCY, 1),
+        ((CUT_OFF, CUT_OFF, CUT_OFF), Tier.CARE_TEAM, 3),
+    ],
+)
+def test_the_verdict_rules_are_unchanged(readings, expected, failed):
+    verdict = classify(RecordingLLM(*readings), SETTINGS, "q", patient1())
+
+    assert verdict.tier == expected
+    assert verdict.failed == failed
