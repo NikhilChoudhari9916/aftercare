@@ -99,6 +99,9 @@ class QuestionResult(BaseModel):
     fallback_reason: str | None
     gate_ms: int
     total_ms: int
+    # A short cleaned reason for the failed model call (class, status, API error type and message).
+    # Eval output only: it is never stored in QALog or returned by /ask.
+    fallback_detail: str | None = None
 
 
 class QuestionState(TypedDict, total=False):
@@ -118,6 +121,7 @@ class QuestionState(TypedDict, total=False):
     failed_checks: list[str]
     validation: ValidationResult
     stop: str | None  # why the loop ended early: timeout, tool_limit or model_error
+    fallback_detail: str | None  # the cleaned reason (LLMError.detail) behind a model_error
     outcome: str
     fallback_reason: str | None
     reply: str
@@ -307,8 +311,8 @@ def build_question_graph(deps: QuestionDeps):
                 tools=deps.registry.specs(),
                 max_tokens=settings.answer_max_tokens,
             )
-        except LLMError:
-            return {"stop": "model_error"}
+        except LLMError as error:
+            return {"stop": "model_error", "fallback_detail": error.detail}
         return {"last_reply": reply}
 
     def after_agent(state: QuestionState) -> str:
@@ -388,6 +392,7 @@ def build_question_graph(deps: QuestionDeps):
         return {
             "outcome": "fallback",
             "fallback_reason": state.get("stop") or "validators",
+            "fallback_detail": state.get("fallback_detail"),
             "reply": _fallback_reply(deps.profile, state["tier"]),
             "followups": [],
             "cited": [],
@@ -498,6 +503,7 @@ def _result(deps: QuestionDeps, state: QuestionState, started: float) -> Questio
         attempts=state.get("attempts", 0),
         retrieval_mode=_retrieval_mode(deps),
         fallback_reason=state.get("fallback_reason"),
+        fallback_detail=state.get("fallback_detail"),
         gate_ms=state.get("gate_ms", 0),
         total_ms=int((deps.clock() - started) * 1000),
     )
