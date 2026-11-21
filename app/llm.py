@@ -10,8 +10,31 @@ from app.config import Settings, get_settings
 T = TypeVar("T", bound=BaseModel)
 
 
+DETAIL_MAX_CHARS = 200
+SAFE_API_ERROR_TYPES = frozenset(
+    {
+        "invalid_request_error",
+        "authentication_error",
+        "permission_error",
+        "not_found_error",
+        "request_too_large",
+        "rate_limit_error",
+        "api_error",
+        "overloaded_error",
+    }
+)
+
+
 class LLMError(Exception):
-    """Base class. Messages never contain prompts or patient text."""
+    """Base class. Messages never contain prompts or patient text.
+
+    `detail` is a short, one-line, already-cleaned reason that is safe to show a developer in the
+    eval output. It is optional; without it, it is just the class name.
+    """
+
+    def __init__(self, message: str = "", detail: str | None = None) -> None:
+        super().__init__(message)
+        self.detail = detail or type(self).__name__
 
 
 class LLMUnavailable(LLMError):
@@ -142,18 +165,54 @@ class AnthropicLLM:
         try:
             response = _call(self._client.messages.parse, **params)
         except ValueError as error:  # pydantic could not read the reply as the schema
-            raise LLMOutputError("the reply did not match the requested shape") from error
+            raise LLMOutputError(
+                "the reply did not match the requested shape",
+                detail="LLMOutputError reason=bad_shape",
+            ) from error
         _check_stop(response.stop_reason)
         if response.parsed_output is None:
-            raise LLMOutputError("the reply did not match the requested shape")
+            raise LLMOutputError(
+                "the reply did not match the requested shape",
+                detail="LLMOutputError reason=bad_shape",
+            )
         return response.parsed_output
 
 
 def _check_stop(stop_reason: str | None) -> None:
     if stop_reason == "refusal":
-        raise LLMRefused("the model declined this request")
+        raise LLMRefused("the model declined this request", detail="LLMRefused stop=refusal")
     if stop_reason == "max_tokens":
-        raise LLMOutputError("the reply was cut off at the token limit")
+        raise LLMOutputError(
+            "the reply was cut off at the token limit", detail="LLMOutputError stop=max_tokens"
+        )
+
+
+def _safe_detail(error: Exception) -> str:
+    """Only bounded metadata and fixed reason codes, never free-form response text.
+
+    A provider may echo submitted text in its error message or an unexpected error type.
+    Recognize known failures without copying that text into the evaluation report.
+    """
+    parts = [type(error).__name__]
+    status = getattr(error, "status_code", None)
+    if isinstance(status, int) and 100 <= status <= 599:
+        parts.append(f"status={status}")
+    body = getattr(error, "body", None)
+    api_error = body.get("error", body) if isinstance(body, dict) else None
+    api_type = api_error.get("type") if isinstance(api_error, dict) else None
+    if api_type is not None:
+        safe_type = (
+            api_type
+            if isinstance(api_type, str) and api_type in SAFE_API_ERROR_TYPES
+            else "unknown_error"
+        )
+        parts.append(f"type={safe_type}")
+    message = getattr(error, "message", None)
+    if status == 400 and isinstance(message, str):
+        lowered = message.casefold()
+        if "credit balance" in lowered and ("too low" in lowered or "insufficient" in lowered):
+            parts.append("reason=insufficient_credits")
+    return " ".join(parts)[:DETAIL_MAX_CHARS]
 
 
 def _call(function, **params):
@@ -161,11 +220,15 @@ def _call(function, **params):
         return function(**params)
     except (anthropic.APIConnectionError, anthropic.RateLimitError) as error:
         # APITimeoutError is a subclass of APIConnectionError.
-        raise LLMUnavailable(type(error).__name__) from error
+        raise LLMUnavailable(type(error).__name__, detail=_safe_detail(error)) from error
     except anthropic.APIStatusError as error:
         if error.status_code >= 500:
-            raise LLMUnavailable(f"server error {error.status_code}") from error
-        raise LLMError(f"request rejected ({error.status_code})") from error
+            raise LLMUnavailable(
+                f"server error {error.status_code}", detail=_safe_detail(error)
+            ) from error
+        raise LLMError(
+            f"request rejected ({error.status_code})", detail=_safe_detail(error)
+        ) from error
 
 
 @lru_cache
