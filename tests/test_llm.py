@@ -204,27 +204,83 @@ def detail_of(error: Exception) -> str:
     return caught.value.detail
 
 
-def test_a_rejected_request_explains_status_type_and_message():
+def test_a_rejected_request_explains_status_type_and_a_fixed_reason():
     detail = detail_of(status_error(400, "Your credit balance is too low"))
 
     assert detail == (
-        "APIStatusError status=400 type=invalid_request_error msg=Your credit balance is too low"
+        "APIStatusError status=400 type=invalid_request_error reason=insufficient_credits"
     )
 
 
-def test_the_detail_is_one_line_without_pipes_commas_or_keys():
-    detail = detail_of(status_error(400, "bad\nkey sk-ant-FAKEKEY123 | a, b\r\n  c"))
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Invalid field: SYNTHETIC_PATIENT_MARKER_42",
+        "bad\nkey sk-ant-FAKEKEY123 | a, b\r\n  c",
+        "word " * 500,
+        "Your credit balance is too low: SYNTHETIC_PATIENT_MARKER_42",
+    ],
+)
+def test_free_form_response_messages_are_not_copied(message):
+    detail = detail_of(status_error(400, message))
 
-    assert "\n" not in detail and "\r" not in detail
-    assert "|" not in detail and "," not in detail
-    assert "sk-ant-FAKEKEY123" not in detail and "FAKEKEY" not in detail
-    assert "[redacted-key]" in detail
+    assert "SYNTHETIC_PATIENT_MARKER_42" not in detail
+    assert "FAKEKEY" not in detail and "word" not in detail
+    assert "msg=" not in detail
+    assert "\n" not in detail and "\r" not in detail and "|" not in detail and "," not in detail
+    assert len(detail) <= DETAIL_MAX_CHARS
+    assert detail.startswith("APIStatusError status=400 type=invalid_request_error")
 
 
-def test_a_very_long_message_is_cut_to_the_limit():
-    detail = detail_of(status_error(400, "word " * 500))
+@pytest.mark.parametrize(
+    "error_type", ["SYNTHETIC_PATIENT_MARKER_42", "bad|type\nsecret", {"patient": "secret"}]
+)
+def test_unrecognized_error_types_are_replaced_without_echoing_them(error_type):
+    detail = detail_of(status_error(400, "Invalid request", error_type=error_type))
 
-    assert len(detail) == DETAIL_MAX_CHARS and detail.endswith("…")
+    assert detail == "APIStatusError status=400 type=unknown_error"
+
+
+def test_credit_errors_keep_a_fixed_reason_without_echoing_the_message():
+    detail = detail_of(status_error(400, "Your credit balance is too low: patient secret"))
+
+    assert "reason=insufficient_credits" in detail
+    assert "patient" not in detail and "secret" not in detail
+
+
+def test_response_text_is_absent_from_saved_evaluation_reports(tmp_path):
+    from tests.eval.run_eval import RunResult, summarize, write_csv
+
+    marker = "SYNTHETIC_PATIENT_MARKER_42"
+    detail = detail_of(status_error(400, "Invalid field containing " + marker))
+    result = RunResult(
+        version="v7+graph",
+        case_id="S1",
+        patient="P1",
+        run=1,
+        expected="Just answer",
+        got="Fallback",
+        facts_found=0,
+        facts_total=1,
+        forbidden=[],
+        checks=[],
+        words=0,
+        unsupported=None,
+        error=None,
+        answer="",
+        gate_tier=3,
+        fallback_reason="model_error",
+        fallback_detail=detail,
+    )
+    csv_path = tmp_path / "results.csv"
+    write_csv([result], csv_path)
+    report_path = tmp_path / "summary.md"
+    report_path.write_text(summarize([result]))
+
+    for output in (csv_path, report_path):
+        content = output.read_text()
+        assert marker not in content and "Invalid field containing" not in content
+        assert "status=400" in content and "invalid_request_error" in content
 
 
 def test_the_request_prompt_and_headers_never_get_into_the_detail():

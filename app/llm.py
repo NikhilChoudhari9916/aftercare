@@ -1,4 +1,3 @@
-import re
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Protocol, TypeVar
@@ -12,7 +11,18 @@ T = TypeVar("T", bound=BaseModel)
 
 
 DETAIL_MAX_CHARS = 200
-_API_KEY = re.compile(r"sk-[A-Za-z0-9_-]+")
+SAFE_API_ERROR_TYPES = frozenset(
+    {
+        "invalid_request_error",
+        "authentication_error",
+        "permission_error",
+        "not_found_error",
+        "request_too_large",
+        "rate_limit_error",
+        "api_error",
+        "overloaded_error",
+    }
+)
 
 
 class LLMError(Exception):
@@ -177,34 +187,32 @@ def _check_stop(stop_reason: str | None) -> None:
         )
 
 
-def _one_line(text: str) -> str:
-    """Redact key-like strings, then drop the characters that break a CSV or a markdown table."""
-    text = _API_KEY.sub("[redacted-key]", text)
-    return " ".join(text.replace("|", " ").replace(",", " ").split())
-
-
 def _safe_detail(error: Exception) -> str:
-    """Class, HTTP status, API error type and the API's own message, on one short line.
+    """Only bounded metadata and fixed reason codes, never free-form response text.
 
-    Built only from the response the API sent back, never from the request, so the prompt,
-    the messages and the headers cannot get in.
+    A provider may echo submitted text in its error message or an unexpected error type.
+    Recognize known failures without copying that text into the evaluation report.
     """
     parts = [type(error).__name__]
     status = getattr(error, "status_code", None)
-    if status is not None:
+    if isinstance(status, int) and 100 <= status <= 599:
         parts.append(f"status={status}")
     body = getattr(error, "body", None)
     api_error = body.get("error", body) if isinstance(body, dict) else None
     api_type = api_error.get("type") if isinstance(api_error, dict) else None
-    if isinstance(api_type, str) and api_type != "error":
-        parts.append(f"type={api_type}")
-    api_message = getattr(error, "message", None)
-    if isinstance(api_message, str) and api_message:
-        parts.append(f"msg={api_message}")
-    line = _one_line(" ".join(parts))
-    if len(line) > DETAIL_MAX_CHARS:
-        line = line[: DETAIL_MAX_CHARS - 1] + "…"
-    return line
+    if api_type is not None:
+        safe_type = (
+            api_type
+            if isinstance(api_type, str) and api_type in SAFE_API_ERROR_TYPES
+            else "unknown_error"
+        )
+        parts.append(f"type={safe_type}")
+    message = getattr(error, "message", None)
+    if status == 400 and isinstance(message, str):
+        lowered = message.casefold()
+        if "credit balance" in lowered and ("too low" in lowered or "insufficient" in lowered):
+            parts.append("reason=insufficient_credits")
+    return " ".join(parts)[:DETAIL_MAX_CHARS]
 
 
 def _call(function, **params):
