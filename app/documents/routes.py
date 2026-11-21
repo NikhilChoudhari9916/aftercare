@@ -22,6 +22,7 @@ from app.models import (
     ProfileItem,
     ProfileStatus,
     ProfileVersion,
+    RetrievalState,
     Role,
     utc_now,
 )
@@ -204,16 +205,18 @@ def confirm_profile(
     if len(set(decided)) != len(decided) or set(decided) != set(items):
         raise HTTPException(status_code=422, detail="Please decide on every item exactly once")
 
+    changed = False
     for entry in decision.items:
         item = items[entry.id]
         if entry.action == "remove":
+            changed = True
             db.delete(item)
             continue
         if entry.data is not None:
             try:
-                item.data = (
-                    SECTION_MODELS[item.section].model_validate(entry.data).model_dump_json()
-                )
+                edited = SECTION_MODELS[item.section].model_validate(entry.data)
+                changed |= edited.model_dump() != json.loads(item.data)
+                item.data = edited.model_dump_json()
             except ValidationError as error:
                 raise HTTPException(
                     status_code=422, detail=f"That change to a {item.section} item is not valid"
@@ -221,6 +224,13 @@ def confirm_profile(
         item.confirmed = True
         db.add(item)
 
+    db.add(
+        RetrievalState(
+            patient_id=patient_id,
+            profile_version_id=version.id,
+            include_document_text=not changed,
+        )
+    )
     version.status = ProfileStatus.CONFIRMED
     version.confirmed_at = utc_now()
     db.add(version)

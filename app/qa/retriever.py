@@ -2,12 +2,13 @@ from typing import Literal
 
 from sqlmodel import Session, select
 
-from app.models import Chunk
+from app.models import Chunk, RetrievalState
 from app.qa.aliases import expand_query
 from app.qa.bm25 import bm25_rank
 from app.qa.embedding_search import EmbeddingSearch
 from app.qa.embeddings import EmbeddingUnavailable
 from app.qa.hybrid import reciprocal_rank_fusion
+from app.qa.index import index_patient
 from app.summary.profile import load_confirmed_profile
 from app.tools.profile_tools import Passage
 
@@ -44,9 +45,21 @@ class Retriever:
         return [_passage(chunks[index]) for index in ranked[:limit]]
 
     def _chunks(self, patient_id: str) -> list[Chunk]:
+        profile = load_confirmed_profile(self._db, patient_id)
+        if profile is None:
+            return []
+        state = self._db.get(RetrievalState, profile.version_id)
+        if state is None or state.patient_id != patient_id or not state.ready:
+            # Do this before ranking or loading vectors: an old index can hold removed text.
+            index_patient(self._db, patient_id)
         return list(
             self._db.exec(
-                select(Chunk).where(Chunk.patient_id == patient_id).order_by(Chunk.position)
+                select(Chunk)
+                .where(
+                    Chunk.patient_id == patient_id,
+                    Chunk.profile_version_id == profile.version_id,
+                )
+                .order_by(Chunk.position)
             ).all()
         )
 

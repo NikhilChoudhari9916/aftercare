@@ -57,13 +57,45 @@ def medicine_chunks(profile: ConfirmedProfile) -> list[RawChunk]:
             parts.append(f"What changed: {medicine.change_note}")
         if medicine.end_date:
             parts.append(f"Last day: {medicine.end_date}.")
-        parts.append(f'Your papers say: "{medicine.source_quote}"')
+        if medicine.source_quote:
+            parts.append(f'Your papers say: "{medicine.source_quote}"')
         chunks.append(RawChunk(medicine.source_page, "Your medicine list", " ".join(parts)))
     return chunks
 
 
-def build_chunks(pages: Sequence[PageText], profile: ConfirmedProfile) -> list[RawChunk]:
-    return [*chunk_pages(pages), *medicine_chunks(profile)]
+def build_chunks(
+    pages: Sequence[PageText], profile: ConfirmedProfile, *, include_document_text: bool = False
+) -> list[RawChunk]:
+    if include_document_text:
+        return [*chunk_pages(pages), *medicine_chunks(profile)]
+    # Corrections invalidate the original text as evidence. Build every section from the
+    # confirmed fields, not from a best-effort redaction of arbitrary PDF sentences.
+    safe = profile.model_copy(
+        update={"medicines": [m.model_copy(update={"source_quote": ""}) for m in profile.medicines]}
+    )
+    chunks = medicine_chunks(safe)
+    for sign in profile.warning_signs:
+        label = "CALL 911" if sign.tier == "CALL_911" else "CALL CARE TEAM"
+        chunks.append(
+            RawChunk(sign.source_page, "When to call your care team", f"{label}: {sign.text}")
+        )
+    for visit in profile.follow_ups:
+        who = f" with {visit.with_whom}" if visit.with_whom else ""
+        chunks.append(
+            RawChunk(
+                visit.source_page, "Your follow-up appointments", f"{visit.what}: {visit.when}{who}"
+            )
+        )
+    for contact in profile.care_team:
+        hours = f" ({contact.hours})" if contact.hours else ""
+        chunks.append(
+            RawChunk(
+                contact.source_page, "Your care team", f"{contact.name}: {contact.phone}{hours}"
+            )
+        )
+    for limit in profile.diet_limits:
+        chunks.append(RawChunk(limit.source_page, "Food and drink", limit.text))
+    return chunks
 
 
 def _lines(text: str) -> list[str]:

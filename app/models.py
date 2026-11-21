@@ -186,6 +186,15 @@ class ProfileItem(SQLModel, table=True):
     confirmed: bool = False
 
 
+class RetrievalState(SQLModel, table=True):
+    """Approval and completion of one confirmed profile's search index. No patient text."""
+
+    profile_version_id: str = Field(foreign_key="profileversion.id", primary_key=True)
+    patient_id: str = Field(index=True)
+    include_document_text: bool = False
+    ready: bool = False
+
+
 class ChunkSource(StrEnum):
     DOCUMENT = "DOCUMENT"  # the patient's own papers; cited as [D#]
     LABEL = "LABEL"  # an FDA label section; cited as [L#] (later)

@@ -2,7 +2,7 @@
 
 **Scope and method.** I read everything on your list and ran the relevant tests: 203 passed, and `ruff` is clean. I made no edits and called no model. Some findings come from reading the code and were not run end to end; I mark where I did run something.
 
-**Last checked against commit `4482838`.** Since the report was first written, the code fixes for F3, F4, F8, F9 (logout only) and F11 have landed, and F10 is partly fixed. F1, F2, F5, F6 and F7 are still open. Every line number below was re-read from the current code. Each status names the test or lines it rests on.
+**Last checked against commit `4482838`.** Since the report was first written, the code fixes for F3, F4, F8, F9 (logout only) and F11 have landed, and F10 is partly fixed. F2, F5, F6 and F7 remain open. F1 was regression-tested and fixed on 2026-11-21; the other finding statuses were not re-audited in that update. Every line number below was re-read from the current code. Each status names the test or lines it rests on.
 
 ## Executive summary
 
@@ -16,7 +16,7 @@ I found **1 high, 5 medium, 5 low and 3 info** items. The high one is a rule fro
 
 | ID | Sev | Status | Title |
 |---|---|---|---|
-| F1 | **High** | Still open | Removed or edited paperwork stays searchable and citable |
+| F1 | **High** | Fixed, 2026-11-21 | Removed or edited paperwork stays searchable and citable |
 | F2 | Medium | Still open | An injected document line is flagged but still indexed, and the validators pass it |
 | F3 | Medium | Fixed in this PR (one part open) | Some paths reach a patient with no gate: unconfirmed papers, over 500 characters, pre-graph errors |
 | F4 | Medium | Fixed in this PR | Tier 2 failures end in the pharmacist fallback, not the care-team line |
@@ -32,7 +32,9 @@ I found **1 high, 5 medium, 5 low and 3 info** items. The high one is a rule fro
 ## Findings
 
 **F1, High. Removed or edited paperwork is still retrievable.**
-- **Status:** Still open. `build_chunks` (`app/qa/chunker.py:65-66`) still returns `chunk_pages(pages)` (raw page text, line 27) plus `medicine_chunks(profile)` (line 42), and nothing filters the page chunks against the profile. No test covers it.
+- **Status:** Fixed, 2026-11-21. Confirmation records whether the profile was changed. Edited or removed items force retrieval to use confirmed fields only, and original quotes are excluded from model-facing profiles, tools and validator evidence. Unchanged confirmations retain the existing raw-document search. Legacy indexes without this metadata rebuild conservatively before keyword or embedding search. Only the current confirmed version is searched.
+- **Regression evidence:** `tests/qa/test_index_and_retriever.py` covers removals in all five sections, corrected doses, old indexes, interrupted indexing, old versions, no-op edits, hybrid patient isolation and database upgrades. `test_a_corrected_dose_is_the_only_dose_accepted_through_ask` in `tests/qa/test_ask_api.py` accepts the correction and rejects the original dose end to end. The removal and dose tests failed before the fix. No paid model calls were used.
+- **Tradeoff:** After a correction, or when upgrading a legacy profile, information that exists only in raw PDF text is no longer searchable. Confirmed medicines, warning signs, visits, contacts and diet limits remain searchable. Original PDFs and stored quotes are retained for the confirmation view, but do not serve as model evidence in this mode. The new metadata table is added by normal database initialization; legacy profiles do not require re-upload.
 - **Where:** `app/qa/index.py:27`, `app/qa/chunker.py:27,42,65-66`.
 - **What:** `build_chunks` chunks the raw page text. Only the medicine-row chunks respect the confirmed profile.
 - **Demonstrated:** I ran the chunker on a page containing "Start warfarin 5 mg…" with warfarin removed from the profile. The page chunk still held the warfarin line. The `index.py` docstring claims a removed medicine "can never be found again", which is false for page chunks.
@@ -40,8 +42,26 @@ I found **1 high, 5 medium, 5 low and 3 info** items. The high one is a rule fro
   - It breaks "nothing unconfirmed is ever used in answers" (CLAUDE.md section 2, and safety-review item 7).
   - If extraction hallucinated a medicine, or the patient corrected a dose, the original text can still be retrieved and cited.
   - The validators count cited chunk text as known (`validators.py:102,152`), so such an answer passes.
-- **Fix:** Build page chunks only from text that supports confirmed items. Alternatively, drop any chunk that contains a medicine name or quote the patient removed, and add a test for it.
+- **Fix implemented:** Default to confirmed fields, and include original document passages only when confirmation explicitly recorded no corrections. Index metadata contains IDs and flags only, with no patient text.
 - **User-visible:** Yes. Some answers become "not in your papers".
+
+
+### F1 change: safety checklist (2026-11-21, offline)
+
+| # | Result | Evidence |
+|---|---|---|
+| 1 | PASS | All emergency eval cases return the fixed 911 text in gate tests. |
+| 2 | PASS | Emergency message and gate code are unchanged. |
+| 3 | PASS | Classifier error and timeout tests retain the Tier 2 default. |
+| 4 | PASS | Graph/tool permissions are unchanged; generated-answer validation tests pass. |
+| 5 | PASS | Agent tools still cannot write patient records. Index rebuilding is derived-data maintenance. |
+| 6 | PASS | Existing call-cap, timeout and fallback tests pass; the time limit remains checked between calls. |
+| 7 | PASS | All five sections' removal tests, corrected-dose Ask tests and legacy-index tests pass. |
+| 8 | PASS | Existing deterministic schedule/calendar and STOPPED/AS_NEEDED tests pass. |
+| 9 | PASS | Existing citation, dose, advice, diagnosis and care-team validator tests pass. |
+| 10 | PASS (offline) | Rules and scripted classifier cases retain their expected tiers. Live model action accuracy was not remeasured. |
+
+No prompt or model was changed. These checks do not establish live model quality or resolve the other open findings.
 
 **F2, Medium. Indirect injection from an uploaded document.**
 - **Status:** Still open. `upload_graph.py:53` still only records `injection_flags`, `ui/pages/confirm.py:153` only shows a warning, and `index.py:27` indexes every page chunk. `_check_advice` (`validators.py:404`) and `_check_uncited` (`validators.py:218`) are unchanged. No test covers it.
@@ -163,7 +183,7 @@ I found **1 high, 5 medium, 5 low and 3 info** items. The high one is a rule fro
 - ADR-0004 and the safety skill name `app/agents/runner.py`, which does not exist. The graph in `question_graph.py` does that job.
 - ADR-0041 says `care_team_line` leads Tier 2 answers. It was unused; the fallback now uses it (F4, fixed). The validators still only check the model's own lead, not the fallback's.
 - ADR-0031 and CLAUDE.md say transcripts clear at session end. They now do at logout; revoke and patient delete are not built yet (F9).
-- `index.py` says a removed medicine can never be found. It still can (F1, open).
+- The removed-medicine retrieval gap was fixed on 2026-11-21 (F1); see its regression evidence above.
 - ADR-0041 still says "31 eval questions" (`docs/decisions/0041-*.md`, line 33). The file has 33 cases.
 - CLAUDE.md section 9 lists a summary and pending question in short-term memory. They are not built.
 
@@ -179,7 +199,7 @@ I found **1 high, 5 medium, 5 low and 3 info** items. The high one is a rule fro
 
 Fixed since this report was written: F3, F4, F8, F11, and F9 for logout. F10 is partly fixed.
 
-1. F1: it still breaks a stated rule ("nothing unconfirmed is ever used in answers"), and the fix is small.
+1. F1 is now fixed; preserve its regression tests and the conservative legacy-index rebuild.
 2. F6: it protects cost and availability.
 3. F2 and F5: they need a team decision about what the validators may trust.
 4. The open parts of earlier fixes: the F3 500 after the emergency check, F9 on revoke and patient delete (when those routes exist), and F10 (Tier 3 messages routed to a fixed reply).
