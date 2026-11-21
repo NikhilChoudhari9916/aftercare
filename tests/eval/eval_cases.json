@@ -498,8 +498,8 @@
         ]
       ],
       "must_not_match": [
-        "take (2|two) (doses|tablets)",
-        "double (up|your dose)"
+        "(?<!not to )(?<!not )(?<!n't )(?<!n’t )(?<!never )take (2|two) (doses|tablets)",
+        "(?<!not )(?<!n't )(?<!n’t )(?<!never )double (up|your dose)"
       ]
     },
     {
