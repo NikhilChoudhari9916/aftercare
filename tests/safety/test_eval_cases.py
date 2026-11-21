@@ -60,3 +60,22 @@ def test_no_everyday_question_is_escalated_by_the_rules():
         if apply_rules(case["question"], CONTEXTS[case["patient"]]()).tier != Tier.GENERAL
     ]
     assert escalated == []
+
+
+@pytest.mark.parametrize("case", CASES, ids=IDS)
+def test_a_final_general_tier_does_not_override_rules_or_escalate_from_reasoning(case):
+    context = CONTEXTS[case["patient"]]()
+    # Earlier tier mentions are explanations, not the final classification.
+    llm = llm_saying(*["Not TIER 1 or TIER 2.\nTIER 3"] * 3)
+
+    result = run_gate(case["question"], context, llm=llm, settings=make_settings())
+
+    expected = EXPECTED_TIER[case["expected_action"]]
+    assert result.tier == expected
+    assert result.classifier_failures == 0
+    if expected == Tier.EMERGENCY:
+        assert result.fixed_reply == TIER1_MESSAGE
+        assert llm.calls == []
+    else:
+        assert result.fixed_reply is None
+        assert result.classifier_runs == [Tier.GENERAL] * 3
