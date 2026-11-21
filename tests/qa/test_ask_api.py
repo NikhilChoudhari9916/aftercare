@@ -416,3 +416,32 @@ def test_a_corrected_dose_is_the_only_dose_accepted_through_ask(
         if block.get("type") == "tool_result"
     ]
     assert tool_results and all("25 mg" not in str(result) for result in tool_results)
+
+
+@pytest.mark.parametrize(
+    "wording",
+    [
+        "Your discharge papers say metoprolol succinate extended-release is 25 mg, "
+        "once daily in the evening.",
+        "Your papers say to take metoprolol 25 mg once a day: in the evening.",
+    ],
+)
+def test_a_plain_cited_medicine_answer_is_not_rejected_for_its_name_or_colon(
+    client, db, confirmed_patient, llm, wording
+):
+    passages = Retriever(db).search(confirmed_patient, "metoprolol", 4)
+    ref = next(p.id for p in passages if "metoprolol" in p.text.casefold() and "25 mg" in p.text)
+    for _ in range(3):
+        llm.queue_reply(reply("TIER 3"))
+    llm.queue_extraction(
+        Route(route="MEDICINE", rewritten_question="What dose of metoprolol is listed?")
+    )
+    llm.queue_reply(tool_call("metoprolol"))
+    llm.queue_reply(reply(f"{wording} [{ref}]"))
+
+    response = ask(client, confirmed_patient, "What dose of metoprolol is listed?")
+
+    assert response.status_code == 200
+    assert response.json()["outcome"] == "answered"
+    row = db.exec(select(QALog).where(QALog.patient_id == confirmed_patient)).one()
+    assert row.attempts == 1 and row.validator_checks == "[]"
