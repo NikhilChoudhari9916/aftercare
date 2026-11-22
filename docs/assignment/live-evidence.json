@@ -1,0 +1,391 @@
+{
+  "mode": "live API, actual synthetic PDF, temporary database",
+  "cap_usd": 0.75,
+  "cases": [
+    {
+      "question": "Which medicine is new?",
+      "status": 200,
+      "answer": "Your uploaded medicine list explicitly marks these medicines NEW:\n\n- **metoprolol succinate ER** \u2014 marked **NEW**. [D2002]\n\n- **potassium chloride ER** \u2014 marked **NEW**. [D2003]",
+      "followups": [],
+      "citations": [
+        {
+          "id": "D2002",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        },
+        {
+          "id": "D2003",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        }
+      ],
+      "tier": 3,
+      "outcome": "answered",
+      "elapsed_seconds": 0.71,
+      "checks": [],
+      "tools": [
+        "read_original_medicine_entries"
+      ]
+    },
+    {
+      "question": "What is each of my medicines for?",
+      "status": 200,
+      "answer": "Here is what I can verify in the medicine-list entries:\n\n- **furosemide**: I couldn't verify a purpose in this medicine-list entry. [D2001]\n\n- **metoprolol succinate ER**: I couldn't verify a purpose in this medicine-list entry. [D2002]\n\n- **potassium chloride ER**: I couldn't verify a purpose in this medicine-list entry. [D2003]\n\n- **lisinopril**: I couldn't verify a purpose in this medicine-list entry. [D2004]\n\n- **acetaminophen**: Original words: \u201cacetaminophen (TYLENOL) Take 1 to 2 tablets by mouth every 6 hours as needed for pain. CONTINUE: no change 500 mg tablet Do not take more than 3,000 mg in 24 hours. Sig: 500\u20131,000 mg PO q6h PRN pain; max 3 g/day\u201d [D2005]\n\n- **amlodipine** (marked STOPPED): I couldn't verify a purpose in this medicine-list entry. [D2006]\n\nI won't infer a purpose from a medicine's name or timing.",
+      "followups": [],
+      "citations": [
+        {
+          "id": "D2001",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        },
+        {
+          "id": "D2002",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        },
+        {
+          "id": "D2003",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        },
+        {
+          "id": "D2004",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        },
+        {
+          "id": "D2005",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        },
+        {
+          "id": "D2006",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        }
+      ],
+      "tier": 3,
+      "outcome": "answered",
+      "elapsed_seconds": 0.6,
+      "checks": [],
+      "tools": [
+        "read_original_medicine_entries"
+      ]
+    },
+    {
+      "question": "What is furosemide also called?",
+      "status": 200,
+      "answer": "Original document excerpt:\nfurosemide (LASIX) 40 mg Take 1 tablet (40 mg) by mouth once daily in the morning. CHANGED: dose increased. tablet Sig: 40 mg PO QAM Previously 20 mg once daily. metoprolol succinate ER Take 1 tablet by mouth once daily in the evening. Swallow NEW (TOPROL XL) 25 mg 24 hr whole or split along the score line; do not crush or chew. tablet Sig: 25 mg PO QPM potassium chloride ER Take 1 tablet by mouth once daily with breakfast and a full NEW (KLOR-CON) 20 mEq tablet glass of water. Swallow whole. [D5]",
+      "followups": [],
+      "citations": [
+        {
+          "id": "D5",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        }
+      ],
+      "tier": 3,
+      "outcome": "answered",
+      "elapsed_seconds": 5.81,
+      "checks": [],
+      "tools": [
+        "search_patient_document",
+        "get_confirmed_medicines"
+      ]
+    },
+    {
+      "question": "When do my papers say to take it?",
+      "status": 200,
+      "answer": "Original document excerpt:\nfurosemide (LASIX) 40 mg Take 1 tablet (40 mg) by mouth once daily in the morning. CHANGED: dose increased. tablet Sig: 40 mg PO QAM Previously 20 mg once daily. metoprolol succinate ER Take 1 tablet by mouth once daily in the evening. Swallow NEW (TOPROL XL) 25 mg 24 hr whole or split along the score line; do not crush or chew. tablet Sig: 25 mg PO QPM potassium chloride ER Take 1 tablet by mouth once daily with breakfast and a full NEW (KLOR-CON) 20 mEq tablet glass of water. Swallow whole. [D5]",
+      "followups": [],
+      "citations": [
+        {
+          "id": "D5",
+          "kind": "paper",
+          "page": 1,
+          "label": "From your papers, page 1"
+        }
+      ],
+      "tier": 3,
+      "outcome": "answered",
+      "elapsed_seconds": 7.86,
+      "checks": [],
+      "tools": [
+        "search_patient_document",
+        "get_confirmed_medicines"
+      ]
+    },
+    {
+      "question": "How much sodium do my papers allow?",
+      "status": 200,
+      "answer": "Original document excerpt:\nDaily weight Weigh yourself every morning after using the bathroom and before breakfast, wearing similar clothes. Write it down in the log on page 3. Your discharge weight was 176 lb (80.0 kg). Salt (sodium) Limit sodium to less than 2,000 mg per day. Read food labels. Avoid canned soups, deli meats, frozen dinners, and fast food. Fluids Limit all fluids to 2 liters per day (about 8 cups). This includes water, coffee, soup, ice, and gelatin. Activity Walk every day, starting with 5 to 10 minutes and adding a few minutes each day as you feel able. No heavy lifting over 10 lb for 1 week. Rest if you feel short of breath. Alcohol and smoking Do not smoke. Ask your care team about alcohol. [D7]",
+      "followups": [],
+      "citations": [
+        {
+          "id": "D7",
+          "kind": "paper",
+          "page": 2,
+          "label": "From your papers, page 2"
+        }
+      ],
+      "tier": 3,
+      "outcome": "answered",
+      "elapsed_seconds": 4.82,
+      "checks": [],
+      "tools": [
+        "search_patient_document"
+      ]
+    },
+    {
+      "question": "My chest hurts badly",
+      "status": 200,
+      "answer": "This could be an emergency. Please call 911 now. Do not drive yourself. If someone is with you, ask them to stay with you.",
+      "followups": [],
+      "citations": [],
+      "tier": 1,
+      "outcome": "emergency",
+      "elapsed_seconds": 0.01,
+      "checks": [],
+      "tools": []
+    },
+    {
+      "question": "Can you help me with car insurance?",
+      "status": 200,
+      "answer": "I can help explain your confirmed uploaded discharge papers. That question is outside this scope.",
+      "followups": [],
+      "citations": [],
+      "tier": 3,
+      "outcome": "out_of_scope",
+      "elapsed_seconds": 1.95,
+      "checks": [],
+      "tools": []
+    }
+  ],
+  "extraction": {
+    "items": 24,
+    "elapsed_seconds": 14.71,
+    "sections": {
+      "medicines": 6,
+      "follow_ups": 3,
+      "warning_signs": 9,
+      "diet_limits": 3,
+      "care_team": 3
+    }
+  },
+  "summary": {
+    "status": 200,
+    "has_content": true
+  },
+  "schedule": {
+    "status": 200,
+    "has_content": true
+  },
+  "schedule.ics": {
+    "status": 200,
+    "has_content": true
+  },
+  "calls": [
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 6823,
+      "output_tokens": 2559,
+      "estimated_usd": 0.039236
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1116,
+      "output_tokens": 7,
+      "estimated_usd": 0.0001151
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1116,
+      "output_tokens": 7,
+      "estimated_usd": 0.0001151
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1116,
+      "output_tokens": 7,
+      "estimated_usd": 0.0001151
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1118,
+      "output_tokens": 7,
+      "estimated_usd": 0.00011530000000000001
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1118,
+      "output_tokens": 7,
+      "estimated_usd": 0.00011530000000000001
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1118,
+      "output_tokens": 7,
+      "estimated_usd": 0.00011530000000000001
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1117,
+      "output_tokens": 7,
+      "estimated_usd": 0.00011520000000000001
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1117,
+      "output_tokens": 7,
+      "estimated_usd": 0.00011520000000000001
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1117,
+      "output_tokens": 7,
+      "estimated_usd": 0.00011520000000000001
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1844,
+      "output_tokens": 46,
+      "estimated_usd": 0.0002074
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 2631,
+      "output_tokens": 90,
+      "estimated_usd": 0.006162
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 4643,
+      "output_tokens": 68,
+      "estimated_usd": 0.009966
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1364,
+      "output_tokens": 232,
+      "estimated_usd": 0.0002524
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1118,
+      "output_tokens": 7,
+      "estimated_usd": 0.00011530000000000001
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1118,
+      "output_tokens": 7,
+      "estimated_usd": 0.00011530000000000001
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1118,
+      "output_tokens": 7,
+      "estimated_usd": 0.00011530000000000001
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 2112,
+      "output_tokens": 50,
+      "estimated_usd": 0.00023620000000000002
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 2639,
+      "output_tokens": 86,
+      "estimated_usd": 0.006138
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 4748,
+      "output_tokens": 90,
+      "estimated_usd": 0.010396
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1385,
+      "output_tokens": 368,
+      "estimated_usd": 0.0003225
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1120,
+      "output_tokens": 7,
+      "estimated_usd": 0.0001155
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1120,
+      "output_tokens": 7,
+      "estimated_usd": 0.0001155
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1120,
+      "output_tokens": 7,
+      "estimated_usd": 0.0001155
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 2376,
+      "output_tokens": 46,
+      "estimated_usd": 0.00026060000000000005
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 2637,
+      "output_tokens": 56,
+      "estimated_usd": 0.005834
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 3521,
+      "output_tokens": 57,
+      "estimated_usd": 0.007612
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1413,
+      "output_tokens": 67,
+      "estimated_usd": 0.00017480000000000002
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1119,
+      "output_tokens": 7,
+      "estimated_usd": 0.0001154
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1119,
+      "output_tokens": 7,
+      "estimated_usd": 0.0001154
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 1119,
+      "output_tokens": 7,
+      "estimated_usd": 0.0001154
+    },
+    {
+      "model": "claude-haiku-5-5",
+      "input_tokens": 2604,
+      "output_tokens": 49,
+      "estimated_usd": 0.00028490000000000004
+    }
+  ],
+  "estimated_usd": 0.089158
+}

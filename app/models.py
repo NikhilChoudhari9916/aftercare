@@ -186,6 +186,23 @@ class ProfileItem(SQLModel, table=True):
     confirmed: bool = False
 
 
+class ProfileChange(SQLModel, table=True):
+    """Confirmation edits, kept separately from immutable original DocumentPage text.
+
+    Contains patient data, like ProfileItem. Never log it. item_id is intentionally not a
+    foreign key: a removal must retain its history after the profile item is deleted.
+    """
+
+    id: str = Field(default_factory=new_id, primary_key=True)
+    patient_id: str = Field(index=True)
+    profile_version_id: str = Field(foreign_key="profileversion.id", index=True)
+    item_id: str
+    section: str
+    before_data: str
+    after_data: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+
+
 class RetrievalState(SQLModel, table=True):
     """Approval and completion of one confirmed profile's search index. No patient text."""
 

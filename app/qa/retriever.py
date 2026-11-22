@@ -1,10 +1,12 @@
+import re
 from typing import Literal
 
 from sqlmodel import Session, select
 
-from app.models import Chunk, RetrievalState
+from app.models import Chunk, ChunkSource, DocumentPage, ProfileVersion, RetrievalState
 from app.qa.aliases import expand_query
 from app.qa.bm25 import bm25_rank
+from app.qa.chunker import chunk_pages
 from app.qa.embedding_search import EmbeddingSearch
 from app.qa.embeddings import EmbeddingUnavailable
 from app.qa.hybrid import reciprocal_rank_fusion
@@ -52,7 +54,9 @@ class Retriever:
         if state is None or state.patient_id != patient_id or not state.ready:
             # Do this before ranking or loading vectors: an old index can hold removed text.
             index_patient(self._db, patient_id)
-        return list(
+        if profile.review_notices:
+            return []
+        chunks = list(
             self._db.exec(
                 select(Chunk)
                 .where(
@@ -63,6 +67,36 @@ class Retriever:
             ).all()
         )
 
+        version = self._db.get(ProfileVersion, profile.version_id)
+        if version is None or version.patient_id != patient_id:
+            return []
+        pages = list(
+            self._db.exec(
+                select(DocumentPage).where(
+                    DocumentPage.patient_id == patient_id,
+                    DocumentPage.document_id == version.document_id,
+                )
+            ).all()
+        )
+        approved = {(part.page, " ".join(part.text.split())) for part in chunk_pages(pages)}
+        # Whole paragraphs also support fixed synthetic eval sources and legacy indexes.
+        # A substring is insufficient: "take two tablets" must not match a cropped piece
+        # of the original "Do not take two tablets" and lose its negation.
+        approved.update(
+            (page.number, " ".join(paragraph.split()))
+            for page in pages
+            for paragraph in re.split(r"\n\s*\n", page.text)
+            if paragraph.strip()
+        )
+        return [
+            chunk
+            for chunk in chunks
+            if (
+                chunk.source == ChunkSource.DOCUMENT
+                and (chunk.page, " ".join(chunk.text.split())) in approved
+            )
+        ]
+
     def _expand(self, patient_id: str, query: str) -> str:
         profile = load_confirmed_profile(self._db, patient_id)
         if profile is None:
@@ -72,4 +106,10 @@ class Retriever:
 
 
 def _passage(chunk: Chunk) -> Passage:
-    return Passage(id=chunk.ref, page=chunk.page, section=chunk.section, text=chunk.text)
+    return Passage(
+        id=chunk.ref,
+        page=chunk.page,
+        section=chunk.section,
+        text=chunk.text,
+        original_document=True,
+    )

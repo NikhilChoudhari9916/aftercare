@@ -7,6 +7,7 @@ from pydantic import BaseModel, ValidationError
 from sqlmodel import Session, select
 
 from app.auth.dependencies import AppSettings, CurrentUser, DbSession, check_access, require_access
+from app.documents.changes import change_notices
 from app.documents.deps import get_job_runner, get_llm_or_503
 from app.extraction.schema import SECTION_MODELS
 from app.ingestion.pdf_reader import PdfError, read_pdf
@@ -19,6 +20,7 @@ from app.models import (
     Job,
     JobType,
     PatientAccess,
+    ProfileChange,
     ProfileItem,
     ProfileStatus,
     ProfileVersion,
@@ -73,6 +75,7 @@ class ExtractionOut(BaseModel):
     discharge_date: str | None
     injection_flags: list[FlagOut]
     items: list[ItemOut]
+    review_notices: list[str] = []
 
 
 class ItemDecision(BaseModel):
@@ -93,6 +96,7 @@ def _extraction_out(db: Session, version: ProfileVersion) -> ExtractionOut:
         .order_by(ProfileItem.section, ProfileItem.position)
     ).all()
     return ExtractionOut(
+        review_notices=change_notices(db, version)[0],
         version_id=version.id,
         version=version.version,
         status=version.status,
@@ -205,24 +209,47 @@ def confirm_profile(
     if len(set(decided)) != len(decided) or set(decided) != set(items):
         raise HTTPException(status_code=422, detail="Please decide on every item exactly once")
 
-    changed = False
+    # Validate the entire request before changing any row or recording history.
+    prepared: dict[str, str | None] = {}
     for entry in decision.items:
         item = items[entry.id]
         if entry.action == "remove":
-            changed = True
-            db.delete(item)
-            continue
-        if entry.data is not None:
+            prepared[item.id] = None
+        elif entry.data is None:
+            prepared[item.id] = item.data
+        else:
             try:
-                edited = SECTION_MODELS[item.section].model_validate(entry.data)
-                changed |= edited.model_dump() != json.loads(item.data)
-                item.data = edited.model_dump_json()
+                prepared[item.id] = (
+                    SECTION_MODELS[item.section].model_validate(entry.data).model_dump_json()
+                )
             except ValidationError as error:
                 raise HTTPException(
                     status_code=422, detail=f"That change to a {item.section} item is not valid"
                 ) from error
-        item.confirmed = True
-        db.add(item)
+
+    changed = False
+    for entry in decision.items:
+        item = items[entry.id]
+        after = prepared[item.id]
+        is_change = after is None or json.loads(after) != json.loads(item.data)
+        if is_change:
+            changed = True
+            db.add(
+                ProfileChange(
+                    patient_id=patient_id,
+                    profile_version_id=version.id,
+                    item_id=item.id,
+                    section=item.section,
+                    before_data=item.data,
+                    after_data=after,
+                )
+            )
+        if after is None:
+            db.delete(item)
+        else:
+            item.data = after
+            item.confirmed = True
+            db.add(item)
 
     db.add(
         RetrievalState(

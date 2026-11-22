@@ -59,3 +59,5 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0043](0043-retriever-implementation.md) | How the retriever is built, and the embedding model as an optional install | Accepted |
 | [0044](0044-question-workflow-slice.md) | The question workflow for the assignment slice: router, one tool-using agent, validators, session memory | Accepted |
 | [0045](0045-answers-from-confirmed-papers-only.md) | Answers use only confirmed uploaded papers, with claim-support checks and context-only memory | Accepted |
+| [0046](0046-original-excerpts-and-edit-history.md) | Release original excerpts, retain edit comparisons, and withhold disputed values | Accepted |
+| [0047](0047-original-medicine-list-answers.md) | Fixed answers from complete original medicine rows and clarification for ambiguous references | Accepted |

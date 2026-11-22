@@ -57,6 +57,12 @@ def get_calendar(
     titles: Annotated[TitleStyle, Query()] = "private",
 ) -> Response:
     profile = _confirmed(db, patient_id)
+    if profile.review_notices:
+        raise HTTPException(
+            status_code=409,
+            detail="Please check your documents or call your healthcare provider "
+            "before downloading reminders for a profile with changes needing review.",
+        )
     ics = build_ics(
         build_schedule(profile, load_plan(db, patient_id, profile)),
         patient_id,

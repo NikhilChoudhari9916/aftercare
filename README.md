@@ -1,12 +1,22 @@
 # AfterCare
 
-A Python web app that helps adults (18+) and their caregivers understand their own hospital discharge papers during the first 30 days at home. It **explains only the confirmed uploaded papers**, with short cited answers. External references and general model knowledge are not answer evidence (ADR-0045). It never diagnoses or tells anyone to change a medicine.
+A Python web app that helps adults (18+) and their caregivers understand their own hospital discharge papers during the first 30 days at home. Ask displays **verified original document excerpts**, with citations. External references and general model knowledge are not answer evidence. Edits are shown separately from original text and withheld from clinical instructions while they need review ([ADR-0046](docs/decisions/0046-original-excerpts-and-edit-history.md)). It never diagnoses or tells anyone to change a medicine.
 
 Graduate course project (INFO 7375, Building AI Applications). **Synthetic data only. Not medical advice.**
 
 ## Status
 
-Working end to end on synthetic data: sign-in (Google, plus a development-only test login), upload a discharge PDF, AI reading with source quotes, the confirmation screen, a plain-language summary, a medicine schedule, a calendar (`.ics`) download, and the pieces of cited question answering: the safety gate, the tools, per-patient search, the answer validators and an answer eval runner (all built and tested, **not yet connected** to a question screen, and no answer prompt has been run on the real model yet). **Not built yet:** the question workflow and Ask page, enrichment from FDA/RxNorm/MedlinePlus, memory and aides. See [`docs/handoff.md`](docs/handoff.md) for the full list and what to pick up next.
+Implemented on the current local branch: upload and question LangGraph workflows, digital PDF
+extraction and review, deterministic summary/schedule/calendar, cited Ask, short-term medicine
+reference resolution, and code-owned answers for the two common medicine-list questions.
+Clinical answer evidence comes from original uploaded text; edits remain separately labelled.
+
+Assignment 4 verification: **1,177 offline tests passed** and **seven targeted live scenarios
+passed**, including the two reported questions and the two-turn memory example. The live sample
+cost an estimated **$0.089158**, within a $0.75 cap. See the [submission package](docs/assignment/README.md)
+for the five slides, workflow diagram, platform comparison, demo steps, evidence and limitations.
+These local results do not imply a main-branch merge, clinical validation or completion of later
+external-user, security and deployment assignments.
 
 ## Run it
 

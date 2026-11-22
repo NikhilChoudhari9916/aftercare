@@ -1,6 +1,6 @@
 # ADR-0040: The summary, schedule and calendar are built by plain code from the confirmed profile
 
-- **Status:** Accepted
+- **Status:** Partly superseded by ADR-0046 (original evidence and edit handling)
 - **Date:** 2026-11-12
 - **Deciders:** team
 - **Supersedes:** none (applies ADR-0006 and CLAUDE.md section 4: "the summary and schedule screens are built directly from the profile, without agents")

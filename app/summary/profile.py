@@ -4,6 +4,7 @@ from datetime import date, datetime
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from app.documents.changes import change_notices
 from app.extraction.schema import (
     ExtractedContact,
     ExtractedDietLimit,
@@ -28,6 +29,7 @@ class ConfirmedProfile(BaseModel):
     diet_limits: list[ExtractedDietLimit]
     # The database IDs of the medicines and follow-ups above, in the same order. The patient's
     # plan (reminder times, visit choices) is attached to these (ADR-0042).
+    review_notices: list[str] = []
     medicine_ids: list[str] = []
     follow_up_ids: list[str] = []
 
@@ -62,6 +64,12 @@ def load_confirmed_profile(db: Session, patient_id: str) -> ConfirmedProfile | N
         .order_by(ProfileItem.section, ProfileItem.position)
     ).all()
 
+    notices, changed_ids = change_notices(db, version)
+    if notices:
+        # A disputed edit must not silently become an instruction in a schedule or summary.
+        # Missing historical edits cannot be reconstructed, so withhold all legacy items.
+        items = [item for item in items if item.id not in changed_ids] if changed_ids else []
+
     state = db.get(RetrievalState, version.id)
     original_text_allowed = (
         state is not None and state.patient_id == patient_id and state.include_document_text
@@ -79,6 +87,7 @@ def load_confirmed_profile(db: Session, patient_id: str) -> ConfirmedProfile | N
         return [item.id for item in items if item.section == name]
 
     return ConfirmedProfile(
+        review_notices=notices,
         version_id=version.id,
         version=version.version,
         confirmed_at=version.confirmed_at,

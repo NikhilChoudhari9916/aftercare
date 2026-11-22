@@ -60,6 +60,10 @@ async def confirm_page(request: Request) -> None:
 
 def show_confirmed(me: Me, draft: Draft) -> None:
     with app_shell(me, active="/confirm"):
+        for notice in draft.review_notices:
+            with ui.column().classes("ac-card w-full"):
+                ui.label("Changes need checking").classes("ac-h2")
+                ui.label(notice).classes("whitespace-pre-wrap")
         with ui.column().classes("ac-card ac-hero fade-up"):
             success_check()
             ui.label("Your papers are confirmed").classes("ac-title")
@@ -68,7 +72,8 @@ def show_confirmed(me: Me, draft: Draft) -> None:
                 "Only confirmed items are ever used to answer your questions."
             ).classes("ac-lead")
         tip(CONFIRMED_NEXT)
-        button("Set up your reminders", href="/schedule#plan")
+        if not draft.review_notices:
+            button("Set up your reminders", href="/schedule#plan")
         button("See your summary", kind="soft", href="/summary", icon="article")
         button("Upload different papers", kind="ghost", href="/upload")
         button("Home", kind="ghost", href="/")

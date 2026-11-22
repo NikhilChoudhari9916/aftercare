@@ -1,6 +1,6 @@
 # ADR-0043: How the retriever is built, and the embedding model as an optional install
 
-- **Status:** Accepted
+- **Status:** Partly superseded by ADR-0046 (original evidence and edit handling)
 - **Date:** 2026-11-13
 - **Deciders:** team
 - **Supersedes:** none (fills in ADR-0028; the design there is unchanged)

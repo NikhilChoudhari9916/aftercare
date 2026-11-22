@@ -1,6 +1,6 @@
 # ADR-0045: Answers from confirmed uploaded papers only
 
-- **Status:** Accepted by explicit user instruction, 2026-11-21
+- **Status:** Partly superseded by ADR-0046 (original evidence and edit handling)
 - **Supersedes:** External-answer-source provisions of ADR-0002, ADR-0023 and ADR-0027
 
 ## Context

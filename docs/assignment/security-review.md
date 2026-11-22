@@ -1,5 +1,10 @@
 # Security and safety review of `POST /patients/{id}/ask`
 
+**Historical review.** This records the earlier code snapshot and its findings. For the current
+local Assignment 4 implementation and verification, use [README.md](README.md),
+[workflow-diagram.md](workflow-diagram.md) and [safety-review.md](safety-review.md). This note does
+not claim that the older security findings have all been resolved or that these changes are on main.
+
 **Scope and method.** I read everything on your list and ran the relevant tests: 203 passed, and `ruff` is clean. I made no edits and called no model. Some findings come from reading the code and were not run end to end; I mark where I did run something.
 
 **Last checked against commit `4482838`.** Since the report was first written, the code fixes for F3, F4, F8, F9 (logout only) and F11 have landed, and F10 is partly fixed. F2, F5, F6 and F7 remain open. F1 was regression-tested and fixed on 2026-11-21; the other finding statuses were not re-audited in that update. Every line number below was re-read from the current code. Each status names the test or lines it rests on.

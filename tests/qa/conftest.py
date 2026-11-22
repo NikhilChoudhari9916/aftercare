@@ -1,7 +1,7 @@
 from sqlmodel import Session
 
 from app.extraction.schema import MedStatus
-from app.models import Patient, ProfileStatus, User
+from app.models import DocumentPage, Patient, ProfileStatus, User
 from app.qa.index import index_patient
 from tests.documents.test_upload_api import (
     ready,  # noqa: F401  (fixture: Patient 1 read, not confirmed)
@@ -20,6 +20,15 @@ def other_patient(db: Session) -> str:
     db.add(patient)
     db.commit()
     warfarin = medicine("warfarin", ["COUMADIN"], "5 mg", "daily", MedStatus.NEW, "Take warfarin.")
-    add_version(db, patient.id, 1, ProfileStatus.CONFIRMED, [(warfarin, True)])
+    version = add_version(db, patient.id, 1, ProfileStatus.CONFIRMED, [(warfarin, True)])
+    db.add(
+        DocumentPage(
+            patient_id=patient.id,
+            document_id=version.document_id,
+            number=1,
+            text="Medicine instructions\nTake warfarin (COUMADIN) 5 mg daily as written.",
+        )
+    )
+    db.commit()
     index_patient(db, patient.id)
     return patient.id

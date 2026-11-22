@@ -1,5 +1,10 @@
 # Statements that disagree with the code (a list, not fixes)
 
+**Historical review.** This records the earlier code snapshot and its findings. For the current
+local Assignment 4 implementation and verification, use [README.md](README.md),
+[workflow-diagram.md](workflow-diagram.md) and [safety-review.md](safety-review.md). This note does
+not claim that the older security findings have all been resolved or that these changes are on main.
+
 Checked against `main` at commit `b216bdb`. **Nothing here has been fixed**; each line says what a
 file claims and what the code shows. Line numbers are from the files as they stand on this branch.
 Where an item could not be checked from the repository it says UNVERIFIED. Items already listed in

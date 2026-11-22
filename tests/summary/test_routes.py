@@ -67,12 +67,16 @@ def test_removed_items_never_reach_the_summary_schedule_or_calendar(
         json=decide_all(extraction, **{lisinopril["id"]: {"action": "remove"}}),
     )
 
-    summary = client.get(f"/patients/{patient_id}/summary").text
-    schedule = client.get(f"/patients/{patient_id}/schedule").text
+    summary = client.get(f"/patients/{patient_id}/summary").json()
+    schedule = client.get(f"/patients/{patient_id}/schedule").json()
     calendar = client.get(f"/patients/{patient_id}/schedule.ics", params={"titles": "detailed"})
 
-    assert "lisinopril" not in summary + schedule + calendar.text
-    assert "furosemide" in summary
+    clinical = [section for section in summary["sections"] if section["key"] != "document_changes"]
+    assert "lisinopril" not in str(clinical)
+    assert "lisinopril" not in str({k: v for k, v in schedule.items() if k != "review_notices"})
+    assert "furosemide" in str(clinical)
+    assert "item removed" in str(schedule["review_notices"])
+    assert calendar.status_code == 409 and "BEGIN:VCALENDAR" not in calendar.text
 
 
 def test_a_patients_edit_in_the_confirmation_screen_shows_up(
@@ -92,7 +96,9 @@ def test_a_patients_edit_in_the_confirmation_screen_shows_up(
     )
 
     summary = client.get(f"/patients/{patient_id}/summary").text
-    assert "Now: 20 mg" in summary
+    assert "Your edited dose" in summary and "user-entered, not document evidence" in summary
+    assert "Now: 20 mg" not in summary
+    assert "Please check your documents or call your healthcare provider." in summary
 
 
 def test_an_aide_can_read_all_three(

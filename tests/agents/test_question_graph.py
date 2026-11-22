@@ -56,8 +56,20 @@ class Found(BaseModel):
 def _search(_context: ToolContext, _arguments: Query) -> Found:
     return Found(
         passages=[
-            {"id": "D1", "page": 1, "section": "Medication changes", "text": D1},
-            {"id": "D4", "page": 2, "section": "When to call", "text": D4},
+            {
+                "id": "D1",
+                "page": 1,
+                "section": "Medication changes",
+                "text": D1,
+                "original_document": True,
+            },
+            {
+                "id": "D4",
+                "page": 2,
+                "section": "When to call",
+                "text": D4,
+                "original_document": True,
+            },
         ]
     )
 
@@ -175,7 +187,8 @@ def test_a_symptom_goes_to_the_agent_whatever_the_router_said():
     assert result.task == "MEDICINE"
     assert result.outcome == "answered"
     assert result.reply.startswith("<analysis>") is False
-    assert "**Call your care team today:**" in result.reply
+    assert result.reply.startswith(NO_CARE_TEAM_LINE)
+    assert D4 in result.reply
 
 
 def test_a_router_that_fails_sends_the_question_to_the_agent():
@@ -227,13 +240,15 @@ def test_a_focus_the_router_invents_is_not_trusted():
 def test_the_agent_uses_a_tool_then_answers_with_a_citation():
     llm = scripted(routes=[route()], replies=[use_tool(), say(GOOD)])
 
-    result = run_question(make_deps(llm), "what is furosemide for")
+    result = run_question(make_deps(llm), "What dose of furosemide is listed?")
 
     assert result.outcome == "answered"
     assert result.tool_names == ["search_patient_document"]
     assert [c.id for c in result.citations] == ["D1"]
     assert result.citations[0].label == "From your papers, page 1"
     assert result.followups == ["What changed?"]
+    assert D1 in result.reply
+    assert "Your discharge papers say to take" not in result.reply
     assert "<analysis>" not in result.reply
     first, second = agent_calls(llm)
     assert [tool["name"] for tool in first["tools"]] == ["search_patient_document"]
@@ -485,7 +500,8 @@ def test_a_known_citation_does_not_let_an_unsupported_purpose_reach_the_patient(
 
     result = run_question(make_deps(llm), "What is furosemide for?")
 
-    assert result.outcome == "answered" and result.reply == NO_PURPOSE
+    assert result.outcome == "answered"
+    assert result.reply == "I couldn't verify a medicine purpose in the retrieved original text."
     assert result.attempts == 2 and "UNSUPPORTED_CLAIM" in result.failed_checks
     assert "high blood pressure" not in result.reply
 
@@ -521,7 +537,8 @@ def test_external_tools_are_blocked_even_if_a_caller_supplies_a_broader_registry
 
     result = run_question(deps, "What is furosemide for?")
 
-    assert result.reply == NOT_STATED and called == []
+    assert result.reply == "I couldn't verify a medicine purpose in the retrieved original text."
+    assert called == []
     assert all(t["name"] != "search_fda_label" for t in agent_calls(llm)[0]["tools"])
 
 

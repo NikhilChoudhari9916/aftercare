@@ -65,6 +65,7 @@ class InjectionFlag(BaseModel):
 
 
 class Draft(BaseModel):
+    review_notices: list[str] = []
     version_id: str
     status: str
     discharge_date: str | None
@@ -134,6 +135,7 @@ class FollowUpLine(BaseModel):
 
 
 class Schedule(BaseModel):
+    review_notices: list[str] = []
     version: int
     daily: list[DoseTime]
     needs_timing: list[MedicineLine]

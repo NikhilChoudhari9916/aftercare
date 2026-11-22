@@ -29,12 +29,13 @@ class SourceBook:
             return result
         data = result.get("data", {})
 
-        if name == "search_patient_document":
+        if name in ("search_patient_document", "read_original_medicine_entries"):
             self.paper_search_completed = True
             for passage in data.get("passages", []):
                 self.texts[passage["id"]] = passage["text"]
                 self.meta[passage["id"]] = {
                     "kind": PAPERS,
+                    "original_document": passage.get("original_document") is True,
                     "page": passage["page"],
                     "section": passage["section"],
                 }

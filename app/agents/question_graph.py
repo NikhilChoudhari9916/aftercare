@@ -6,7 +6,8 @@
                 -> validators -> (pass: finalize) (fail once: retry) (fail twice: fallback)
 
 The safety gate and the validators are nodes WE wire in. The agent's tool list never contains
-them and no edge skips them, so no model can decide to bypass a safety check (ADR-0004). Every
+them, so no model can decide to bypass a safety check (ADR-0004). Fixed source-list and
+clarification replies have code-owned checks and do not use generated clinical prose. Every
 limit (6 tool calls, 30 seconds, a failed model call, two failed answers) ends in the safe
 fallback message. Nodes are plain functions that take state and return what they add, so each
 one can be tested without the graph.
@@ -17,6 +18,7 @@ to read (ADR-0031).
 
 import json
 import logging
+import re
 import time
 import traceback
 from collections.abc import Callable
@@ -31,15 +33,18 @@ from app.extraction.schema import ExtractedContact
 from app.llm import LLM, LLMError, LLMResponse
 from app.memory.session import Recall
 from app.qa.answer_text import cited_ids, parse_answer, plain_text
-from app.qa.grounding import SAFE_FOLLOWUPS, check_paper_support
+from app.qa.excerpts import release_excerpts
+from app.qa.grounding import CLARIFY_MEDICINE, SAFE_FOLLOWUPS, check_paper_support
+from app.qa.medicine_answers import answer_medicine_list, medicine_question
 from app.qa.prompts import fill_prompt
-from app.qa.references import resolve_reference
+from app.qa.references import REFERENCE, resolve_reference
 from app.qa.sources import PAPERS, SourceBook
 from app.qa.validators import Check, Failure, ValidationResult, fallback_message, validate_answer
 from app.safety.gate import GateResult
 from app.safety.messages import TIER1_MESSAGE, care_team_line
 from app.safety.rules import Tier
 from app.summary.profile import ConfirmedProfile
+from app.tools.paper_medicines import READ_ORIGINAL_MEDICINE_ENTRIES, MedicineEntries
 from app.tools.registry import ToolContext, ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -86,7 +91,7 @@ class QuestionResult(BaseModel):
     reply: str
     followups: list[str]
     citations: list[Citation]
-    outcome: Literal["emergency", "answered", "redirect", "out_of_scope", "fallback"]
+    outcome: Literal["emergency", "answered", "redirect", "out_of_scope", "fallback", "conflict"]
     tier: int
     decided_by: str
     task: str
@@ -222,7 +227,9 @@ def build_question_graph(deps: QuestionDeps):
         return {"gate": gate, "tier": gate.tier, "gate_ms": int((deps.clock() - begun) * 1000)}
 
     def after_gate(state: QuestionState) -> str:
-        return "emergency" if state["tier"] == Tier.EMERGENCY else "load_context"
+        if state["tier"] == Tier.EMERGENCY:
+            return "emergency"
+        return "document_changes" if deps.profile.review_notices else "load_context"
 
     def emergency(state: QuestionState) -> dict[str, Any]:
         # The fixed words, with no model and no retrieval (ADR-0030, ADR-0041).
@@ -230,6 +237,18 @@ def build_question_graph(deps: QuestionDeps):
             "outcome": "emergency",
             "route": "NONE",
             "reply": state["gate"].fixed_reply or TIER1_MESSAGE,
+            "followups": [],
+            "cited": [],
+        }
+
+    def document_changes(state: QuestionState) -> dict[str, Any]:
+        text = "Changes need checking.\n\n" + "\n\n".join(deps.profile.review_notices)
+        if state["tier"] == Tier.CARE_TEAM:
+            text = f"{care_team_line(None, None)}\n\n{text}"
+        return {
+            "outcome": "conflict",
+            "route": "NONE",
+            "reply": text,
             "followups": [],
             "cited": [],
         }
@@ -244,6 +263,57 @@ def build_question_graph(deps: QuestionDeps):
             "failed_checks": [],
             "stop": None,
         }
+
+    def after_context(state: QuestionState) -> str:
+        _, focus = resolve_reference(deps.profile, state["question"], deps.recall)
+        if (
+            REFERENCE.search(state["question"])
+            and focus is None
+            and re.search(r"\b(?:take|dose|swallow|medicine|pill)\b", state["question"], re.I)
+        ):
+            return "clarify_reference"
+        return (
+            "paper_list"
+            if medicine_question(state["question"]) and deps.tools.db is not None
+            else "router"
+        )
+
+    def clarify_reference(state: QuestionState) -> dict[str, Any]:
+        reply = CLARIFY_MEDICINE
+        if state["tier"] == Tier.CARE_TEAM:
+            reply = f"{care_team_line(None, None)}\n\n{reply}"
+        return {
+            "outcome": "answered",
+            "route": "CLARIFY",
+            "reply": reply,
+            "followups": [],
+            "cited": [],
+        }
+
+    def paper_list(state: QuestionState) -> dict[str, Any]:
+        tool = READ_ORIGINAL_MEDICINE_ENTRIES
+        try:
+            result = ToolRegistry([tool]).run(tool.name, {}, deps.tools)
+        except Exception:  # a malformed table must fall back to the regular safe workflow
+            result = {"ok": False}
+        if not result.get("ok"):
+            return {"stop": None}
+        entries = MedicineEntries.model_validate(result["data"])
+        sources = state["sources"]
+        sources.add_tool_result(tool.name, result)
+        intent = medicine_question(state["question"])
+        return {
+            "outcome": "answered",
+            "route": "PAPER_LIST",
+            "reply": answer_medicine_list(entries, intent, state["tier"]),
+            "followups": [],
+            "cited": [e.id for e in entries.passages if intent == "purposes" or e.status == "NEW"],
+            "sources": sources,
+            "tool_names": [tool.name],
+        }
+
+    def after_paper_list(state: QuestionState) -> str:
+        return END if state.get("outcome") == "answered" else "router"
 
     def router(state: QuestionState) -> dict[str, Any]:
         question, explicit_focus = resolve_reference(deps.profile, state["question"], deps.recall)
@@ -427,20 +497,38 @@ def build_question_graph(deps: QuestionDeps):
         known = state["sources"].texts
         cited = [cid for cid in dict.fromkeys(cited_ids(parsed.visible)) if cid in known]
         said_911 = plain_text(parsed.visible) == TIER1_MESSAGE
+        excerpt = (
+            release_excerpts(
+                state["last_reply"].text,
+                question=state["agent_question"],
+                sources=state["sources"],
+                profile=deps.profile,
+                tier=state["tier"],
+            )
+            if not said_911
+            else None
+        )
         return {
             "outcome": "emergency" if said_911 else "answered",
-            "reply": parsed.visible,
+            "reply": TIER1_MESSAGE if said_911 else excerpt.text,
             "followups": []
             if said_911
             else [q for q in parsed.followups if q in SAFE_FOLLOWUPS][:3],
-            "cited": cited,
+            "cited": cited if said_911 else excerpt.cited,
+            "failed_checks": [
+                *state["failed_checks"],
+                *([Check.UNSUPPORTED_CLAIM.value] if excerpt and excerpt.blocked else []),
+            ],
         }
 
     graph = StateGraph(QuestionState)
     for name, node in (
         ("safety_gate", safety_gate),
         ("emergency", emergency),
+        ("document_changes", document_changes),
         ("load_context", load_context),
+        ("paper_list", paper_list),
+        ("clarify_reference", clarify_reference),
         ("router", router),
         ("schedule_reply", schedule_reply),
         ("out_of_scope_reply", out_of_scope_reply),
@@ -455,10 +543,23 @@ def build_question_graph(deps: QuestionDeps):
 
     graph.add_edge(START, "safety_gate")
     graph.add_conditional_edges(
-        "safety_gate", after_gate, {"emergency": "emergency", "load_context": "load_context"}
+        "safety_gate",
+        after_gate,
+        {
+            "emergency": "emergency",
+            "document_changes": "document_changes",
+            "load_context": "load_context",
+        },
     )
     graph.add_edge("emergency", END)
-    graph.add_edge("load_context", "router")
+    graph.add_edge("document_changes", END)
+    graph.add_conditional_edges(
+        "load_context",
+        after_context,
+        {"paper_list": "paper_list", "clarify_reference": "clarify_reference", "router": "router"},
+    )
+    graph.add_edge("clarify_reference", END)
+    graph.add_conditional_edges("paper_list", after_paper_list, {END: END, "router": "router"})
     graph.add_conditional_edges(
         "router",
         after_router,

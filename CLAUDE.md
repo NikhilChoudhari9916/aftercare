@@ -1,15 +1,24 @@
 # AfterCare: project context for Claude Code
 
-**Current answer-source policy (ADR-0045, user-directed 2026-11-21):** Clinical answers use only
-confirmed uploaded papers. FDA, RxNorm, MedlinePlus, general model knowledge and prior answers
-are not answer evidence. Older sections describing external answer sources are superseded by
-ADR-0045. Memory may identify a medicine reference but may not supply clinical facts. The agent
-gets only confirmed-medicine and patient-document tools. Every factual sentence needs its own
-retrieved D citation, followed by fail-closed claim-support verification. Missing information
-gets a clear not-stated response. Fixed emergency handling is unchanged. Answer prompt v11 and
-paper-support prompt v1 implement this policy; full live before/after prompt evaluation remains
-pending under the user's maximum $2 spending limit.
+**Current answer-source policy (ADR-0046, user-directed 2026-11-21):** Ask displays only
+server-verified original document excerpts or fixed nonclinical responses. Model-authored medical
+interpretations are never released, including after an affirmative support-review verdict.
+Retrieval verifies the current patient, document version, page and actual original text; a D ID
+or synthesized profile passage is not proof. FDA, RxNorm, MedlinePlus, general model knowledge
+and conversation answers are not evidence. Memory may identify a medicine reference only.
+Confirmation edits/removals retain separate before/after history and visible original-page,
+originally-extracted and user-edited comparisons. Disputed values are withheld from clinical
+instructions; Ask and calendar export stop for review. Missing historical metadata is disclosed,
+never invented. Fixed emergency handling still runs first. Answer prompt v11 is unchanged;
+its full live benchmark remains pending under the user's maximum $2 spending limit. ADR-0046
+supersedes older source and edit-handling descriptions below.
 
+
+**Common list questions (ADR-0047):** After safety and edit checks, two explicit list intents use
+`read_original_medicine_entries` through ToolRegistry and fixed source-backed templates. The
+model cannot provide missing purposes. Incomplete/unrecognized table layouts use the regular
+router/ReAct path. An unresolved medicine-taking pronoun gets a fixed clarification. No prompt
+or provider setting changes. Assignment 4 evidence and current diagrams are in docs/assignment/.
 
 Read this whole file before doing anything. It records decisions already made with the team. Don't reverse them without asking.
 
