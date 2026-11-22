@@ -8,6 +8,7 @@ from app.models import (
     ProfileItem,
     ProfileStatus,
     ProfileVersion,
+    RetrievalState,
     User,
 )
 from app.summary.profile import load_confirmed_profile
@@ -37,6 +38,16 @@ def add_version(db: Session, patient_id: str, number: int, status: ProfileStatus
     )
     db.add(version)
     db.commit()
+    if status == ProfileStatus.CONFIRMED:
+        # This helper represents confirmation without edits; tests of missing history remove
+        # the approval record explicitly. Real confirmation creates this record in the API.
+        db.add(
+            RetrievalState(
+                patient_id=patient_id,
+                profile_version_id=version.id,
+                include_document_text=True,
+            )
+        )
     for position, (medicine, confirmed) in enumerate(medicines):
         db.add(
             ProfileItem(

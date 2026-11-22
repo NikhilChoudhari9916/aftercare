@@ -1,7 +1,15 @@
 import pytest
 from sqlmodel import Session, select
 
-from app.models import Chunk, Patient, ProfileStatus, ProfileVersion, RetrievalState, User
+from app.models import (
+    Chunk,
+    DocumentPage,
+    Patient,
+    ProfileStatus,
+    ProfileVersion,
+    RetrievalState,
+    User,
+)
 from app.qa.index import index_patient
 from app.qa.retriever import Retriever
 from tests.documents.test_upload_api import decide_all
@@ -24,7 +32,15 @@ def test_confirming_makes_the_papers_searchable(client, db, confirmed_patient):
     assert sorted(c.position for c in chunks) == list(range(1, len(chunks) + 1))
     assert {c.ref for c in chunks} == {f"D{i}" for i in range(1, len(chunks) + 1)}
     assert {c.source for c in chunks} == {"DOCUMENT"}
-    assert sum(c.section == "Your medicine list" for c in chunks) >= 6
+    pages = db.exec(select(DocumentPage).where(DocumentPage.patient_id == confirmed_patient)).all()
+    assert all(
+        any(
+            c.page == page.number and " ".join(c.text.split()) in " ".join(page.text.split())
+            for page in pages
+        )
+        for c in chunks
+    )
+    assert all(not c.text.startswith("Dose:") for c in chunks)
 
 
 def test_a_medicine_the_patient_removed_is_not_in_the_medicine_chunks(client, db, ready):
@@ -41,13 +57,9 @@ def test_a_medicine_the_patient_removed_is_not_in_the_medicine_chunks(client, db
     )
 
     assert response.status_code == 200
-    rows = [
-        c.text
-        for c in chunks_of(db, patient_id)
-        if c.section == "Your medicine list" and c.text.startswith(("amlodipine", "furosemide"))
-    ]
-    assert any(text.startswith("furosemide") for text in rows)
-    assert not any(text.startswith("amlodipine") for text in rows)
+    assert chunks_of(db, patient_id) == []
+    assert response.json()["review_notices"]
+    assert "item removed" in response.json()["review_notices"][0]
 
 
 def test_indexing_again_replaces_the_old_chunks(db, confirmed_patient):
@@ -85,7 +97,7 @@ def test_a_question_finds_the_section_that_answers_it(db, confirmed_patient):
 def test_a_brand_name_finds_the_medicine_written_under_its_generic_name(db, confirmed_patient):
     found = search(db, confirmed_patient, "did they change the lasix")
 
-    assert any(p.section == "Your medicine list" and "furosemide" in p.text for p in found)
+    assert any(p.original_document and "furosemide" in p.text.casefold() for p in found)
 
 
 def test_a_question_the_papers_do_not_cover_returns_nothing(db, confirmed_patient):
@@ -159,8 +171,8 @@ def test_removed_medicine_cannot_be_found_in_any_original_pdf_passage(client, db
         "amlodipine" not in c.text.casefold() and "norvasc" not in c.text.casefold()
         for c in chunks_of(db, patient_id)
     )
-    assert search(db, patient_id, "furosemide")
-    assert search(db, patient_id, "sodium")
+    assert search(db, patient_id, "furosemide") == []
+    assert search(db, patient_id, "sodium") == []  # conflict blocks the whole Q&A path
 
 
 def test_edited_dose_does_not_reappear_from_the_original_quote_or_pdf(client, db, ready):
@@ -183,12 +195,14 @@ def test_edited_dose_does_not_reappear_from_the_original_quote_or_pdf(client, db
 
     passages = search(db, patient_id, "metoprolol", 50)
     text = " ".join(p.text for p in passages)
-    assert "37 mg" in text
-    assert "25 mg" not in text
+    assert "37 mg" not in text and "25 mg" not in text
     profile = load_confirmed_profile(db, patient_id)
-    medicine = next(m for m in profile.medicines if m.name_as_written == "metoprolol succinate ER")
-    assert medicine.dose == "37 mg"
-    assert "25 mg" not in medicine.source_quote
+    assert all(m.name_as_written != "metoprolol succinate ER" for m in profile.medicines)
+    assert (
+        'Originally extracted dose (check against the document): "25 mg"'
+        in profile.review_notices[0]
+    )
+    assert 'Your edited dose: "37 mg"' in profile.review_notices[0]
 
 
 @pytest.mark.parametrize(
@@ -233,11 +247,16 @@ def test_legacy_chunks_are_rebuilt_before_keyword_or_embedding_search(
 
     passages = retriever.search(confirmed_patient, "medicine", 100)
 
-    assert passages and all("zebradrug" not in p.text for p in passages)
+    assert passages == []  # missing edit history cannot establish original-text approval
     assert all("zebradrug" not in c.text for c in chunks_of(db, confirmed_patient))
     rebuilt = db.get(RetrievalState, version_id)
     assert rebuilt.ready and not rebuilt.include_document_text
-    assert retriever.last_mode == "hybrid"
+    assert retriever.last_mode == "keyword"
+    from app.summary.profile import load_confirmed_profile
+
+    assert (
+        "history is unavailable" in load_confirmed_profile(db, confirmed_patient).review_notices[0]
+    )
 
 
 def test_an_incomplete_index_is_rebuilt_before_search(db, confirmed_patient):

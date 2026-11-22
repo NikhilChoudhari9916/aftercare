@@ -43,7 +43,7 @@ class Settings(BaseModel):
     llm_timeout_seconds: float = 60.0
     job_workers: int = 2
     max_extraction_attempts: int = 2
-    answer_prompt_version: str = "v7"  # prompts/answer_agent_system_prompt_{version}.txt
+    answer_prompt_version: str = "v11"  # prompts/answer_agent_system_prompt_{version}.txt
     max_tool_calls: int = 6
     agent_timeout_seconds: float = 30.0
     router_prompt_version: str = "v1"  # prompts/router_system_prompt_{version}.txt

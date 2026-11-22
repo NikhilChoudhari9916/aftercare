@@ -389,7 +389,7 @@ def needs_close_look(quote_statuses: list[str]) -> str | None:
 # --- the Ask page ---
 
 MAX_QUESTION_CHARS = 500  # must match Settings.max_question_chars in app/config.py
-ASK_INTRO = "Short answers from your own papers and the official drug labels."
+ASK_INTRO = "Short answers supported by your confirmed uploaded papers."
 EMERGENCY_BANNER = "If this might be an emergency, call 911 now."
 ASK_DISCLAIMER = "AfterCare explains your papers. It is not medical advice and cannot diagnose."
 ASK_WAITING = "Looking through your papers..."

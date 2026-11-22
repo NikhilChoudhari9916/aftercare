@@ -83,6 +83,7 @@ class Passage(BaseModel):
     page: int
     section: str
     text: str
+    original_document: bool = False
 
 
 class DocumentSearch(Protocol):

@@ -1,5 +1,25 @@
 # AfterCare: project context for Claude Code
 
+**Current answer-source policy (ADR-0046, user-directed 2026-11-21):** Ask displays only
+server-verified original document excerpts or fixed nonclinical responses. Model-authored medical
+interpretations are never released, including after an affirmative support-review verdict.
+Retrieval verifies the current patient, document version, page and actual original text; a D ID
+or synthesized profile passage is not proof. FDA, RxNorm, MedlinePlus, general model knowledge
+and conversation answers are not evidence. Memory may identify a medicine reference only.
+Confirmation edits/removals retain separate before/after history and visible original-page,
+originally-extracted and user-edited comparisons. Disputed values are withheld from clinical
+instructions; Ask and calendar export stop for review. Missing historical metadata is disclosed,
+never invented. Fixed emergency handling still runs first. Answer prompt v11 is unchanged;
+its full live benchmark remains pending under the user's maximum $2 spending limit. ADR-0046
+supersedes older source and edit-handling descriptions below.
+
+
+**Common list questions (ADR-0047):** After safety and edit checks, two explicit list intents use
+`read_original_medicine_entries` through ToolRegistry and fixed source-backed templates. The
+model cannot provide missing purposes. Incomplete/unrecognized table layouts use the regular
+router/ReAct path. An unresolved medicine-taking pronoun gets a fixed clarification. No prompt
+or provider setting changes. Assignment 4 evidence and current diagrams are in docs/assignment/.
+
 Read this whole file before doing anything. It records decisions already made with the team. Don't reverse them without asking.
 
 **Where the project stands:** read [`docs/handoff.md`](docs/handoff.md) next. It lists what is built, what remains (in build order), the decisions waiting for a teammate, and the known limits. **Answer prompts v7 and v8 have not been run on the real model yet**, and v9 (the `[T#]` tag) is not written: test and validate them with `python -m tests.eval.run_eval` (section 8) before building on them or changing `answer_prompt_version`.

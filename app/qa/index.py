@@ -1,7 +1,7 @@
 from sqlmodel import Session, delete, select
 
 from app.models import Chunk, ChunkSource, DocumentPage, ProfileItem, ProfileVersion, RetrievalState
-from app.qa.chunker import build_chunks
+from app.qa.chunker import chunk_pages
 from app.summary.profile import load_confirmed_profile
 
 
@@ -26,7 +26,7 @@ def index_patient(db: Session, patient_id: str) -> int:
 
     state = db.get(RetrievalState, version.id)
     if state is None:
-        # Pre-fix indexes have no record of edits/removals. Default to confirmed fields.
+        # Pre-fix indexes have no reliable edit approval. Withhold original search text.
         state = RetrievalState(patient_id=patient_id, profile_version_id=version.id)
     if state.patient_id != patient_id:
         raise ValueError("The retrieval state belongs to another patient")
@@ -39,7 +39,9 @@ def index_patient(db: Session, patient_id: str) -> int:
     ).first()
     if unconfirmed is not None:
         state.include_document_text = False
-    chunks = build_chunks(pages, profile, include_document_text=state.include_document_text)
+    chunks = (
+        chunk_pages(pages) if state.include_document_text and not profile.review_notices else []
+    )
     db.exec(delete(Chunk).where(Chunk.patient_id == patient_id))
     for number, raw in enumerate(chunks, start=1):
         db.add(

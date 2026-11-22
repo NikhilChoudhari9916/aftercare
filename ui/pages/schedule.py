@@ -44,12 +44,13 @@ async def schedule_page(request: Request) -> None:
             ui.label("Your medicine schedule").classes("ac-title")
             ui.label("Taken from your confirmed papers.").classes("ac-lead")
         tip(SCHEDULE_TIP)
-        if patient.role == "OWNER":
+        if patient.role == "OWNER" and not schedule.review_notices:
             plan_form(schedule, patient.id, session_token(request))
-        else:
+        elif not schedule.review_notices:
             tip("The patient chooses the reminder times and what to do about each visit.")
         show_schedule(schedule)
-        calendar_card(patient.id)
+        if not schedule.review_notices:
+            calendar_card(patient.id)
         button("Home", kind="ghost", href="/")
 
 
@@ -71,6 +72,8 @@ def medicine_row(line: MedicineLine, *, show_status: bool = False) -> None:
 
 
 def show_schedule(schedule: Schedule) -> None:
+    for notice in schedule.review_notices:
+        ui.label(notice).classes("whitespace-pre-wrap")
     for dose_time in schedule.daily:
         with ui.column().classes("ac-card fade-up"):
             with ui.row().classes("items-center gap-3"):

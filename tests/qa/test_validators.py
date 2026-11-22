@@ -457,3 +457,55 @@ def test_the_checks_never_import_from_the_agents(module):
     source = (Path(__file__).resolve().parents[2] / module).read_text(encoding="utf-8")
 
     assert "app.agents" not in source
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Your discharge papers say metoprolol succinate extended-release is "
+        "**25 mg, once daily in the evening**. [D7]",
+        "Your discharge papers list **metoprolol succinate extended-release, 25 mg**, "
+        "once daily in the evening. [D7]",
+    ],
+)
+def test_a_confirmed_full_medicine_name_is_not_complex_prose(answer):
+    retrieved = {**RETRIEVED, "D7": "metoprolol succinate ER 25 mg once daily in the evening"}
+    assert failed(answer, retrieved=retrieved) == []
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Your papers say to take furosemide 40 mg once a day: in the morning. [D1]",
+        "Your papers say to take furosemide 40 mg in the morning.\n[D1]",
+    ],
+)
+def test_one_cited_sentence_can_contain_a_colon_or_wrap_before_its_citation(answer):
+    assert failed(answer) == []
+
+
+def test_an_actual_uncited_sentence_after_a_colon_answer_is_still_refused():
+    answer = (
+        "Your papers say to take furosemide 40 mg once a day: in the morning. [D1] "
+        "Take it at night."
+    )
+    assert Check.UNCITED_FACT in failed(answer)
+
+
+def test_formulation_scoring_does_not_make_an_invented_dose_or_uncited_fact_valid():
+    source = {**RETRIEVED, "D7": "metoprolol succinate ER 25 mg once daily"}
+    wrong = "Your papers list metoprolol succinate extended-release 99 mg once a day. [D7]"
+    assert Check.DOSE_MISMATCH in failed(wrong, retrieved=source)
+    missing = "Your papers list metoprolol succinate extended-release 25 mg once a day."
+    assert Check.UNCITED_FACT in failed(missing, retrieved=source)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "Your papers say to take furosemide 40 mg in the morning: stop your other medicines. [D1]",
+        "Your papers say to take furosemide 40 mg in the morning. [D1] Stop your other medicines.",
+    ],
+)
+def test_attribution_does_not_excuse_a_new_instruction_after_a_colon(answer):
+    assert Check.MEDICINE_ADVICE in failed(answer)

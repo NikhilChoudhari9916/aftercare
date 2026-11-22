@@ -81,6 +81,11 @@ def build_summary(profile: ConfirmedProfile) -> Summary:
             sections.append(SummarySection(key=key, title=title, lines=lines))
 
     add(
+        "document_changes",
+        "Changes need checking",
+        [SummaryLine(text=notice) for notice in profile.review_notices],
+    )
+    add(
         "medicines",
         "Your medicines",
         [

@@ -39,6 +39,7 @@ from app.models import (
     Chunk,
     ChunkSource,
     Document,
+    DocumentPage,
     Patient,
     ProfileItem,
     ProfileStatus,
@@ -167,12 +168,14 @@ def _add_patient(db: Session, key: str) -> tuple[str, SourceLabels]:
     )
     ids, texts = load_sources(f"data/synthetic/patient{key.removeprefix('P')}_sources.txt")
     labels: dict[str, str] = {}
+    original_pages: dict[int, list[str]] = {}
     for source_id, text in zip(ids, texts, strict=True):
         if source_id.startswith("L"):
             labels[source_id] = text
             continue
         head, _, body = text.partition(": ")
         section, page = _section_and_page(head)
+        original_pages.setdefault(page, []).append(body or text)
         position = int(source_id.removeprefix("D"))
         db.add(
             Chunk(
@@ -184,6 +187,16 @@ def _add_patient(db: Session, key: str) -> tuple[str, SourceLabels]:
                 page=page,
                 section=section,
                 text=body or text,
+            )
+        )
+    # These are synthetic stand-in originals, not a test of PDF extraction accuracy.
+    for number, bodies in original_pages.items():
+        db.add(
+            DocumentPage(
+                document_id=document.id,
+                patient_id=patient.id,
+                number=number,
+                text="\n\n".join(bodies),
             )
         )
     db.commit()

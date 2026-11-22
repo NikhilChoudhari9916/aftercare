@@ -24,7 +24,6 @@ from app.agents.question_graph import (
 )
 from app.auth.dependencies import AppSettings, CurrentUser, DbSession, require_access
 from app.auth.session import COOKIE_NAME, hash_token
-from app.enrichment import get_openfda, get_rxnorm
 from app.enrichment.openfda import OpenFdaClient
 from app.enrichment.rxnorm import RxNormClient
 from app.llm import LLM, LLMResponse, get_llm
@@ -95,7 +94,7 @@ def get_question_llm() -> LLM:
 
 
 def get_tool_clients() -> ToolClients:
-    return ToolClients(rxnorm=get_rxnorm(), openfda=get_openfda())
+    return ToolClients(rxnorm=None, openfda=None)  # answers use submitted papers only
 
 
 def get_retriever(db: DbSession, settings: AppSettings) -> Retriever:

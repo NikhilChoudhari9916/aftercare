@@ -6,7 +6,8 @@
                 -> validators -> (pass: finalize) (fail once: retry) (fail twice: fallback)
 
 The safety gate and the validators are nodes WE wire in. The agent's tool list never contains
-them and no edge skips them, so no model can decide to bypass a safety check (ADR-0004). Every
+them, so no model can decide to bypass a safety check (ADR-0004). Fixed source-list and
+clarification replies have code-owned checks and do not use generated clinical prose. Every
 limit (6 tool calls, 30 seconds, a failed model call, two failed answers) ends in the safe
 fallback message. Nodes are plain functions that take state and return what they add, so each
 one can be tested without the graph.
@@ -17,6 +18,7 @@ to read (ADR-0031).
 
 import json
 import logging
+import re
 import time
 import traceback
 from collections.abc import Callable
@@ -31,38 +33,40 @@ from app.extraction.schema import ExtractedContact
 from app.llm import LLM, LLMError, LLMResponse
 from app.memory.session import Recall
 from app.qa.answer_text import cited_ids, parse_answer, plain_text
+from app.qa.excerpts import release_excerpts
+from app.qa.grounding import CLARIFY_MEDICINE, SAFE_FOLLOWUPS, check_paper_support
+from app.qa.medicine_answers import answer_medicine_list, medicine_question
 from app.qa.prompts import fill_prompt
+from app.qa.references import REFERENCE, resolve_reference
 from app.qa.sources import PAPERS, SourceBook
-from app.qa.validators import ValidationResult, fallback_message, validate_answer
+from app.qa.validators import Check, Failure, ValidationResult, fallback_message, validate_answer
 from app.safety.gate import GateResult
 from app.safety.messages import TIER1_MESSAGE, care_team_line
 from app.safety.rules import Tier
 from app.summary.profile import ConfirmedProfile
+from app.tools.paper_medicines import READ_ORIGINAL_MEDICINE_ENTRIES, MedicineEntries
 from app.tools.registry import ToolContext, ToolRegistry
 
 logger = logging.getLogger(__name__)
 
-# The medication agent may use these four tools and no others (CLAUDE.md section 4).
+# Only confirmed-paper tools may contribute answer evidence (ADR-0045).
 MEDICATION_TOOLS = (
     "get_confirmed_medicines",
     "search_patient_document",
-    "search_fda_label",
-    "lookup_rxnorm",
 )
 MAX_ATTEMPTS = 2  # the first answer, and one retry that tells the model what failed
 RECENT_TURNS = 4  # how much of the conversation the router may read
 RECURSION_LIMIT = 60  # LangGraph's own safety stop; the real limits are in Settings
 
 NO_SOURCES_YET = (
-    "(No sources yet. Use the search tools: passages come back labeled D1, D2, ... "
-    "and drug labels come back labeled L1, L2, ...)"
+    "(No sources yet. Search the confirmed uploaded papers for passages labeled D1, D2, ... .)"
 )
 SCHEDULE_REPLY = (
     "Your reminder times are on your Schedule page. You can also download a calendar file there."
 )
 OUT_OF_SCOPE_REPLY = (
-    "I can help with your discharge papers, your medicines, and your follow-up care. "
-    "For anything else, please ask your care team or your pharmacist."
+    "I can help explain your confirmed uploaded discharge papers. "
+    "That question is outside this scope."
 )
 
 
@@ -87,7 +91,7 @@ class QuestionResult(BaseModel):
     reply: str
     followups: list[str]
     citations: list[Citation]
-    outcome: Literal["emergency", "answered", "redirect", "out_of_scope", "fallback"]
+    outcome: Literal["emergency", "answered", "redirect", "out_of_scope", "fallback", "conflict"]
     tier: int
     decided_by: str
     task: str
@@ -215,6 +219,7 @@ def _first_message(question: str, tier: Tier) -> str:
 
 def build_question_graph(deps: QuestionDeps):
     settings = deps.settings
+    registry = deps.registry.only(name for name in MEDICATION_TOOLS if name in deps.registry.names)
 
     def safety_gate(state: QuestionState) -> dict[str, Any]:
         begun = deps.clock()
@@ -222,7 +227,9 @@ def build_question_graph(deps: QuestionDeps):
         return {"gate": gate, "tier": gate.tier, "gate_ms": int((deps.clock() - begun) * 1000)}
 
     def after_gate(state: QuestionState) -> str:
-        return "emergency" if state["tier"] == Tier.EMERGENCY else "load_context"
+        if state["tier"] == Tier.EMERGENCY:
+            return "emergency"
+        return "document_changes" if deps.profile.review_notices else "load_context"
 
     def emergency(state: QuestionState) -> dict[str, Any]:
         # The fixed words, with no model and no retrieval (ADR-0030, ADR-0041).
@@ -230,6 +237,18 @@ def build_question_graph(deps: QuestionDeps):
             "outcome": "emergency",
             "route": "NONE",
             "reply": state["gate"].fixed_reply or TIER1_MESSAGE,
+            "followups": [],
+            "cited": [],
+        }
+
+    def document_changes(state: QuestionState) -> dict[str, Any]:
+        text = "Changes need checking.\n\n" + "\n\n".join(deps.profile.review_notices)
+        if state["tier"] == Tier.CARE_TEAM:
+            text = f"{care_team_line(None, None)}\n\n{text}"
+        return {
+            "outcome": "conflict",
+            "route": "NONE",
+            "reply": text,
             "followups": [],
             "cited": [],
         }
@@ -245,8 +264,59 @@ def build_question_graph(deps: QuestionDeps):
             "stop": None,
         }
 
+    def after_context(state: QuestionState) -> str:
+        _, focus = resolve_reference(deps.profile, state["question"], deps.recall)
+        if (
+            REFERENCE.search(state["question"])
+            and focus is None
+            and re.search(r"\b(?:take|dose|swallow|medicine|pill)\b", state["question"], re.I)
+        ):
+            return "clarify_reference"
+        return (
+            "paper_list"
+            if medicine_question(state["question"]) and deps.tools.db is not None
+            else "router"
+        )
+
+    def clarify_reference(state: QuestionState) -> dict[str, Any]:
+        reply = CLARIFY_MEDICINE
+        if state["tier"] == Tier.CARE_TEAM:
+            reply = f"{care_team_line(None, None)}\n\n{reply}"
+        return {
+            "outcome": "answered",
+            "route": "CLARIFY",
+            "reply": reply,
+            "followups": [],
+            "cited": [],
+        }
+
+    def paper_list(state: QuestionState) -> dict[str, Any]:
+        tool = READ_ORIGINAL_MEDICINE_ENTRIES
+        try:
+            result = ToolRegistry([tool]).run(tool.name, {}, deps.tools)
+        except Exception:  # a malformed table must fall back to the regular safe workflow
+            result = {"ok": False}
+        if not result.get("ok"):
+            return {"stop": None}
+        entries = MedicineEntries.model_validate(result["data"])
+        sources = state["sources"]
+        sources.add_tool_result(tool.name, result)
+        intent = medicine_question(state["question"])
+        return {
+            "outcome": "answered",
+            "route": "PAPER_LIST",
+            "reply": answer_medicine_list(entries, intent, state["tier"]),
+            "followups": [],
+            "cited": [e.id for e in entries.passages if intent == "purposes" or e.status == "NEW"],
+            "sources": sources,
+            "tool_names": [tool.name],
+        }
+
+    def after_paper_list(state: QuestionState) -> str:
+        return END if state.get("outcome") == "answered" else "router"
+
     def router(state: QuestionState) -> dict[str, Any]:
-        question = state["question"]
+        question, explicit_focus = resolve_reference(deps.profile, state["question"], deps.recall)
         try:
             decision = deps.llm.extract(
                 model=settings.model_fast,
@@ -263,11 +333,9 @@ def build_question_graph(deps: QuestionDeps):
         if state["tier"] == Tier.CARE_TEAM:
             route = "MEDICINE"  # a symptom always gets the care-team answer
 
-        rewritten = decision.rewritten_question.strip()
-        too_long = len(rewritten) > settings.max_question_chars
-        if not rewritten or too_long or len(rewritten) > 3 * len(question) + 80:
-            rewritten = question  # a rewrite that grew a lot is not a rewrite
-        focus = known_medicine(deps.profile, decision.focus_medicine) or deps.recall.focus_medicine
+        # The model routes, but may not add facts or remove symptoms in a rewrite.
+        rewritten = question
+        focus = explicit_focus
         update: dict[str, Any] = {
             "route": route,
             "agent_question": rewritten,
@@ -308,7 +376,7 @@ def build_question_graph(deps: QuestionDeps):
                 model=settings.model_main,
                 system=system,
                 messages=state["messages"],
-                tools=deps.registry.specs(),
+                tools=registry.specs(),
                 max_tokens=settings.answer_max_tokens,
             )
         except LLMError as error:
@@ -322,7 +390,7 @@ def build_question_graph(deps: QuestionDeps):
 
     def run_tool(name: str, raw_input: dict[str, Any]) -> dict[str, Any]:
         try:
-            return deps.registry.run(name, raw_input, deps.tools)
+            return registry.run(name, raw_input, deps.tools)
         except Exception as error:  # noqa: BLE001  (a broken tool must not end the conversation)
             logger.error("tool %s failed: %s", name, type(error).__name__)
             return {"ok": False, "error": "That tool did not work. Answer without it."}
@@ -369,6 +437,30 @@ def build_question_graph(deps: QuestionDeps):
             settings=settings,
             evidence=sources.evidence,
         )
+        if result.passed and tier != Tier.EMERGENCY:
+            if deps.clock() - state["started"] > settings.agent_timeout_seconds:
+                return {
+                    "validation": ValidationResult(
+                        failures=[
+                            Failure(
+                                check=Check.UNSUPPORTED_CLAIM,
+                                detail="The time limit was reached before paper support "
+                                "could be checked.",
+                            )
+                        ]
+                    ),
+                    "stop": "timeout",
+                    "attempts": state["attempts"] + 1,
+                    "failed_checks": [*state["failed_checks"], Check.UNSUPPORTED_CLAIM.value],
+                }
+            result = check_paper_support(
+                raw,
+                profile=deps.profile,
+                retrieved=sources.texts,
+                llm=deps.llm,
+                settings=settings,
+                searched_papers=sources.paper_search_completed,
+            )
         return {
             "validation": result,
             "attempts": state["attempts"] + 1,
@@ -376,6 +468,8 @@ def build_question_graph(deps: QuestionDeps):
         }
 
     def after_validators(state: QuestionState) -> str:
+        if state.get("stop") == "timeout":
+            return "fallback"
         if state["validation"].passed:
             return "finalize"
         return "retry" if state["attempts"] < MAX_ATTEMPTS else "fallback"
@@ -403,18 +497,38 @@ def build_question_graph(deps: QuestionDeps):
         known = state["sources"].texts
         cited = [cid for cid in dict.fromkeys(cited_ids(parsed.visible)) if cid in known]
         said_911 = plain_text(parsed.visible) == TIER1_MESSAGE
+        excerpt = (
+            release_excerpts(
+                state["last_reply"].text,
+                question=state["agent_question"],
+                sources=state["sources"],
+                profile=deps.profile,
+                tier=state["tier"],
+            )
+            if not said_911
+            else None
+        )
         return {
             "outcome": "emergency" if said_911 else "answered",
-            "reply": parsed.visible,
-            "followups": [] if said_911 else parsed.followups[:3],
-            "cited": cited,
+            "reply": TIER1_MESSAGE if said_911 else excerpt.text,
+            "followups": []
+            if said_911
+            else [q for q in parsed.followups if q in SAFE_FOLLOWUPS][:3],
+            "cited": cited if said_911 else excerpt.cited,
+            "failed_checks": [
+                *state["failed_checks"],
+                *([Check.UNSUPPORTED_CLAIM.value] if excerpt and excerpt.blocked else []),
+            ],
         }
 
     graph = StateGraph(QuestionState)
     for name, node in (
         ("safety_gate", safety_gate),
         ("emergency", emergency),
+        ("document_changes", document_changes),
         ("load_context", load_context),
+        ("paper_list", paper_list),
+        ("clarify_reference", clarify_reference),
         ("router", router),
         ("schedule_reply", schedule_reply),
         ("out_of_scope_reply", out_of_scope_reply),
@@ -429,10 +543,23 @@ def build_question_graph(deps: QuestionDeps):
 
     graph.add_edge(START, "safety_gate")
     graph.add_conditional_edges(
-        "safety_gate", after_gate, {"emergency": "emergency", "load_context": "load_context"}
+        "safety_gate",
+        after_gate,
+        {
+            "emergency": "emergency",
+            "document_changes": "document_changes",
+            "load_context": "load_context",
+        },
     )
     graph.add_edge("emergency", END)
-    graph.add_edge("load_context", "router")
+    graph.add_edge("document_changes", END)
+    graph.add_conditional_edges(
+        "load_context",
+        after_context,
+        {"paper_list": "paper_list", "clarify_reference": "clarify_reference", "router": "router"},
+    )
+    graph.add_edge("clarify_reference", END)
+    graph.add_conditional_edges("paper_list", after_paper_list, {END: END, "router": "router"})
     graph.add_conditional_edges(
         "router",
         after_router,

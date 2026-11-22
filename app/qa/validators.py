@@ -25,6 +25,7 @@ MIN_NAME_LENGTH = 4  # a shorter name would match inside ordinary words
 
 class Check(StrEnum):
     EMPTY = "EMPTY"
+    UNSUPPORTED_CLAIM = "UNSUPPORTED_CLAIM"
     NOT_EMERGENCY_TEXT = "NOT_EMERGENCY_TEXT"
     UNKNOWN_CITATION = "UNKNOWN_CITATION"
     UNCITED_FACT = "UNCITED_FACT"
@@ -171,10 +172,13 @@ def _sentences(visible: str) -> list[str]:
     """Sentences as the patient reads them, each with its [D1] tag kept at the end."""
     flat = re.sub(r"\b([ap])\.m\.", r"\1m", visible.replace("**", ""), flags=re.IGNORECASE)
     flat = re.sub(r"\b(Dr|Mr|Mrs|Ms|St)\.", r"\1", flat)
+    flat = re.sub(r"\b([A-Z])\.(?=\s+[A-Z][a-z])", r"\1", flat)  # A. Rivera is one name
     flat = re.sub(r"(?m)^\s*\d+\.\s+", "", flat)  # "1. " at the start of a numbered line
     # Split after a sentence end, unless a [D1] tag follows (it belongs to that sentence), and
     # after a tag that is followed by a new sentence ("... pill. [D1] Take it daily.").
-    pieces = re.split(r"(?<=[.!?:])\s+(?=[^\[])|(?<=\])\s+(?=[A-Z])|\n+", flat)
+    # A citation may wrap onto its own line without becoming a separate sentence.
+    flat = re.sub(r"\n+(?=\s*\[[DLTS]\d+\])", " ", flat)
+    pieces = re.split(r"(?<=[.!?])\s+(?=[^\[])|(?<=\])\s+(?=[A-Z])|\n+", flat)
     return [" ".join(piece.split()) for piece in pieces if piece.strip()]
 
 
@@ -404,13 +408,17 @@ _DIAGNOSIS = re.compile(
 def _check_advice(sentences: list[str]) -> list[Failure]:
     bad = []
     for sentence in sentences:
-        match = _ADVICE.search(sentence)
-        if match is None:
-            continue
-        attributed = _ATTRIBUTED.search(sentence)
-        if attributed and attributed.start() < match.start():
-            continue  # "Your papers say to stop..." reports the papers; it is not our advice
-        bad.append(sentence)
+        # A colon does not end a cited sentence, but attribution before it must not excuse
+        # a new instruction after it ("Your papers say ...: stop your medicines").
+        for clause in re.split(r":\s+", sentence):
+            match = _ADVICE.search(clause)
+            if match is None:
+                continue
+            attributed = _ATTRIBUTED.search(clause)
+            if attributed and attributed.start() < match.start():
+                continue
+            bad.append(sentence)
+            break
     if not bad:
         return []
     return [
@@ -445,16 +453,24 @@ def _mask_medicines(body: str, names: dict[int, list[str]]) -> str:
     A name like "acetaminophen" cannot be made easier, and its syllables would push a short,
     plain sentence far above its real grade.
     """
-    masked = _DRUG_LOOK.sub("medicine", body)
-    for group in names.values():
-        for name in sorted(group, key=len, reverse=True):
-            masked = re.sub(
-                rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])",
-                "medicine",
-                masked,
-                flags=re.IGNORECASE,
+    # Replace full confirmed names before generic drug words; otherwise replacing
+    # "metoprolol" first leaves "succinate ER" behind and inflates the score.
+    variants = {name for group in names.values() for name in group}
+    for name in list(variants):
+        if re.search(r"\ber\b", name, flags=re.IGNORECASE):
+            variants.update(
+                re.sub(r"\ber\b", expanded, name, flags=re.IGNORECASE)
+                for expanded in ("extended-release", "extended release")
             )
-    return masked
+    masked = body
+    for name in sorted(variants, key=len, reverse=True):
+        masked = re.sub(
+            rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])",
+            "medicine",
+            masked,
+            flags=re.IGNORECASE,
+        )
+    return _DRUG_LOOK.sub("medicine", masked)
 
 
 def _check_size(body: str, settings: Settings, names: dict[int, list[str]]) -> list[Failure]:

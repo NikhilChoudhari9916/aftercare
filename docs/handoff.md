@@ -1,5 +1,18 @@
 # Handoff: what is done, what remains, and what to check first
 
+**Assignment 4 update (2026-11-21):** [ADR-0047](decisions/0047-original-medicine-list-answers.md)
+adds original-row answers for the two common list questions and clarification for an unresolved
+medicine reference. The [current submission package](assignment/README.md) replaces the older
+status statements below. Verified locally: 1,177 offline tests, seven live scenarios, and the
+three core UI workflows. No main merge or course submission is implied.
+
+**Current policy update (2026-11-21):** [ADR-0046](decisions/0046-original-excerpts-and-edit-history.md)
+now governs answer release and edit handling. Ask releases original excerpts, never a model's
+clinical paraphrase. Confirmation history shows original text, extracted values and user edits;
+disputed items are withheld, with review notices and a calendar block. Older statements below
+about synthesized answer evidence and missing claim checks are historical. Offline validation
+and remaining limits are in [the original-evidence review](original-evidence-review.md).
+
 Second handoff, written 2026-11-13 by Nikhil (with Claude Code) for the two teammates taking over the build. Read [`TEAM_SETUP.md`](../TEAM_SETUP.md) first (about 15 minutes; you can run the app **without any API key**), then this page, then [`CLAUDE.md`](../CLAUDE.md) sections 1 to 6 and 16.
 
 **Deadline:** the course assignment is due **Sunday Nov 15, 11:59 pm** (a thin end-to-end slice, [ADR-0036](decisions/0036-assignment-slice.md)). The full product plan in [`roadmap.md`](roadmap.md) continues after that.

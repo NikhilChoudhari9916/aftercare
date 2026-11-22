@@ -20,15 +20,15 @@ def retriever(db, tmp_path: Path, embedder: ConceptEmbedder, min_similarity=0.3)
 
 
 def test_meaning_search_adds_what_keywords_cannot_find(db, confirmed_patient, tmp_path):
-    # Patient 1's papers say LASIX and furosemide but never "water pill".
-    keywords_only = Retriever(db).search(confirmed_patient, "is my water pill the same", 4)
-    both = retriever(db, tmp_path, ConceptEmbedder(DIURETIC))
-    found = both.search(confirmed_patient, "is my water pill the same", 4)
+    # Patient 1's papers say LASIX and furosemide but never "diuretic".
+    keywords_only = Retriever(db).search(confirmed_patient, "diuretic", 4)
+    # Whole original passages are longer than the former synthesized medicine rows, so the
+    # deliberately simple fake needs a lower cutoff. The production cutoff is unchanged.
+    both = retriever(db, tmp_path, ConceptEmbedder(DIURETIC), min_similarity=0.1)
+    found = both.search(confirmed_patient, "diuretic", 4)
 
     def furosemide_row(passages):
-        return any(
-            p.section == "Your medicine list" and p.text.startswith("furosemide") for p in passages
-        )
+        return any(p.original_document and p.text.startswith("furosemide") for p in passages)
 
     assert not furosemide_row(keywords_only)
     assert furosemide_row(found)

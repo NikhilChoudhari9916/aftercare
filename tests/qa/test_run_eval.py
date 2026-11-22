@@ -404,7 +404,7 @@ def test_a_dry_run_shows_the_plan_and_the_first_prompt_and_calls_no_model(capsys
     eval_module.main(["--dry-run", "--only", "S1", "--runs", "3"])
 
     out = capsys.readouterr().out
-    assert "Prompt v7: 1 cases x 3 runs = 3 calls" in out
+    assert "Prompt v11: 1 cases x 3 runs = 3 calls" in out
     assert "SYNTHETIC TEST PATIENT" in out and "What changed with my water pill?" in out
 
 

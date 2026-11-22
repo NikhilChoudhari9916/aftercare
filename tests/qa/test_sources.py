@@ -32,7 +32,12 @@ def test_passages_are_kept_by_their_id_with_where_they_came_from():
 
     assert book.add_tool_result("search_patient_document", result) == result
     assert book.texts == {"D1": "text of D1", "D2": "text of D2"}
-    assert book.meta["D1"] == {"kind": "paper", "page": 1, "section": "Medication changes"}
+    assert book.meta["D1"] == {
+        "kind": "paper",
+        "page": 1,
+        "section": "Medication changes",
+        "original_document": False,
+    }
 
 
 def test_a_label_gets_an_id_and_the_same_medicine_keeps_it():
@@ -74,3 +79,13 @@ def test_a_failed_tool_result_is_returned_unchanged():
 
     assert book.add_tool_result("search_patient_document", failed) is failed
     assert book.texts == {}
+
+
+def test_only_a_successful_paper_search_can_establish_that_the_papers_were_checked():
+    from app.qa.sources import SourceBook
+
+    sources = SourceBook()
+    sources.add_tool_result("search_patient_document", {"ok": False, "error": "unavailable"})
+    assert not sources.paper_search_completed
+    sources.add_tool_result("search_patient_document", {"ok": True, "data": {"passages": []}})
+    assert sources.paper_search_completed

@@ -141,6 +141,7 @@ class FollowUpLine(BaseModel):
 
 
 class Schedule(BaseModel):
+    review_notices: list[str] = []
     version: int
     daily: list[DoseTime]
     needs_timing: list[MedicineLine]
@@ -354,6 +355,7 @@ def build_schedule(profile: ConfirmedProfile, plan: Plan | None = None) -> Sched
         for index, follow_up in enumerate(profile.follow_ups)
     ]
     return Schedule(
+        review_notices=profile.review_notices,
         version=profile.version,
         daily=daily,
         needs_timing=needs_timing,

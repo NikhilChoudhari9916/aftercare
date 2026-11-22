@@ -1,6 +1,6 @@
 # ADR-0027: openFDA labels contribute purpose and warnings only, never dosage
 
-- **Status:** Accepted
+- **Status:** Partly superseded by ADR-0045 (answer evidence restricted to uploaded papers)
 - **Date:** 2026-11-01
 - **Deciders:** team
 - **Supersedes:** none (narrows the label sections listed in `CLAUDE.md` section 15)

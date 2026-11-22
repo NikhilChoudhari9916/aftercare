@@ -15,7 +15,7 @@ Every important project decision is recorded here as an **Architecture Decision 
 | ADR | Decision | Status |
 |-----|----------|--------|
 | [0001](0001-record-decisions.md) | Record architecture decisions as ADRs | Accepted |
-| [0002](0002-scope-explain-only.md) | Scope: explain only, adults, first 30 days, synthetic data | Accepted |
+| [0002](0002-scope-explain-only.md) | Scope: explain only, adults, first 30 days, synthetic data | Partly superseded by 0045 |
 | [0003](0003-backend-and-ui-separation.md) | FastAPI backend; UI is a separate client over HTTP | Accepted |
 | [0004](0004-two-pipelines-safety-in-code.md) | Two pipelines; fixed code decides whether safety checks run | Accepted |
 | [0005](0005-three-tier-safety-gate.md) | Three-tier safety gate: rules + classifier run 3 times | Accepted |
@@ -36,11 +36,11 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0020](0020-s3-for-deployed-demo.md) | S3 storage only for the final demo; local for all development | Accepted (deferred to demo phase) |
 | [0021](0021-google-sign-in-shared-login.md) | Google sign-in for identity only; patients and aides are the same kind of user | Sign-in stands; shared login superseded by ADR-0032 |
 | [0022](0022-ics-first-calendar-later.md) | Downloadable `.ics` first; Google Calendar sync later | Accepted |
-| [0023](0023-medlineplus-for-terms.md) | MedlinePlus as the cited source for plain-language terms | Accepted |
+| [0023](0023-medlineplus-for-terms.md) | MedlinePlus as the cited source for plain-language terms | Partly superseded by 0045 |
 | [0024](0024-long-term-memory-deferred.md) | Long-term memory deferred; rules set now | Superseded by ADR-0029 |
 | [0025](0025-diet-and-physio-agents-later.md) | Diet and physio agents planned as later specialists | Accepted |
 | [0026](0026-third-party-skills.md) | Eight third-party Claude Code skills, with guardrails | Accepted |
-| [0027](0027-fda-purpose-and-warnings-only.md) | openFDA labels contribute purpose and warnings only, never dosage | Accepted |
+| [0027](0027-fda-purpose-and-warnings-only.md) | openFDA labels contribute purpose and warnings only, never dosage | Partly superseded by 0045 |
 | [0028](0028-hybrid-retrieval-faiss.md) | Per-patient hybrid retrieval (BM25 + embeddings in FAISS) | Accepted |
 | [0029](0029-long-term-memory-in-scope.md) | Short-term and long-term memory are in scope | Accepted |
 | [0030](0030-deck-scope-and-pipeline.md) | Use cases, pipeline steps, and input scope from the Assignment 3 deck (PDF input only) | Accepted |
@@ -58,3 +58,6 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0042](0042-patient-plan-for-times-and-visits.md) | The patient's own plan for reminder times and visits, kept apart from the papers | Accepted |
 | [0043](0043-retriever-implementation.md) | How the retriever is built, and the embedding model as an optional install | Accepted |
 | [0044](0044-question-workflow-slice.md) | The question workflow for the assignment slice: router, one tool-using agent, validators, session memory | Accepted |
+| [0045](0045-answers-from-confirmed-papers-only.md) | Answers use only confirmed uploaded papers, with claim-support checks and context-only memory | Accepted |
+| [0046](0046-original-excerpts-and-edit-history.md) | Release original excerpts, retain edit comparisons, and withhold disputed values | Accepted |
+| [0047](0047-original-medicine-list-answers.md) | Fixed answers from complete original medicine rows and clarification for ambiguous references | Accepted |
