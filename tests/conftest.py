@@ -3,6 +3,7 @@ import os
 # Set before any app import so tests never read a developer's .env or touch a real database.
 os.environ["APP_ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite://"
+os.environ["EMBEDDINGS_WARM_UP"] = "0"  # the app's startup must not load the real model
 
 from collections.abc import Callable, Iterator  # noqa: E402
 from pathlib import Path  # noqa: E402

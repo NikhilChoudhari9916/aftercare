@@ -46,6 +46,18 @@ class Retriever:
                 self.last_mode = "hybrid"
         return [_passage(chunks[index]) for index in ranked[:limit]]
 
+    def warm(self, patient_id: str) -> None:
+        """Build this patient's meaning index now, so their first question does not wait for it.
+
+        It uses the same chunk selection as `search`, so the index it saves is the one a later
+        search finds. Raises EmbeddingUnavailable if the model cannot run.
+        """
+        if self._embeddings is None:
+            return
+        chunks = self._chunks(patient_id)
+        if chunks:
+            self._embeddings.prepare(patient_id, chunks)
+
     def _chunks(self, patient_id: str) -> list[Chunk]:
         profile = load_confirmed_profile(self._db, patient_id)
         if profile is None:
