@@ -57,6 +57,9 @@ class Settings(BaseModel):
     # Public drug-name and drug-label services. Only medicine names are ever sent to them.
     rxnav_base_url: str = "https://rxnav.nlm.nih.gov/REST"
     openfda_base_url: str = "https://api.fda.gov"
+    # Let Ask look a confirmed medicine up on the FDA drug label when the papers do not say what
+    # it is for (ADR-0048). Only the medicine's name leaves this machine. Off in tests.
+    fda_label_lookup: bool = True
     external_timeout_seconds: float = 5.0
     external_cache_days: int = 7  # CLAUDE.md section 15: refresh weekly
     label_section_chars: int = 1500  # keeps a tool result short enough to read and cite

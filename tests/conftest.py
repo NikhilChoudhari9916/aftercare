@@ -4,6 +4,7 @@ import os
 os.environ["APP_ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["EMBEDDINGS_WARM_UP"] = "0"  # the app's startup must not load the real model
+os.environ["FDA_LABEL_LOOKUP"] = "0"  # and a test must never reach the real FDA service
 
 from collections.abc import Callable, Iterator  # noqa: E402
 from pathlib import Path  # noqa: E402

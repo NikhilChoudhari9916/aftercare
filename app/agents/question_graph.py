@@ -6,7 +6,7 @@
                 -> validators -> (pass: finalize) (fail once: retry) (fail twice: fallback)
 
 The safety gate and the validators are nodes WE wire in. The agent's tool list never contains
-them, so no model can decide to bypass a safety check (ADR-0004). Fixed source-list and
+them, so no model can decide to bypass a safety check (ADR-0004). Fixed source-list, purpose and
 clarification replies have code-owned checks and do not use generated clinical prose. Every
 limit (6 tool calls, 30 seconds, a failed model call, two failed answers) ends in the safe
 fallback message. Nodes are plain functions that take state and return what they add, so each
@@ -29,12 +29,14 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
 from app.config import Settings
+from app.enrichment.openfda import LabelText
 from app.extraction.schema import ExtractedContact
 from app.llm import LLM, LLMError, LLMResponse
 from app.memory.session import Recall
 from app.qa.answer_text import cited_ids, parse_answer, plain_text
 from app.qa.excerpts import release_excerpts
 from app.qa.grounding import CLARIFY_MEDICINE, SAFE_FOLLOWUPS, check_paper_support
+from app.qa.label_purpose import answer_purpose, entry_for, purpose_medicine
 from app.qa.medicine_answers import answer_medicine_list, medicine_question
 from app.qa.prompts import fill_prompt
 from app.qa.references import REFERENCE, resolve_reference
@@ -44,6 +46,7 @@ from app.safety.gate import GateResult
 from app.safety.messages import TIER1_MESSAGE, care_team_line
 from app.safety.rules import Tier
 from app.summary.profile import ConfirmedProfile
+from app.tools.label_tools import SEARCH_FDA_LABEL
 from app.tools.paper_medicines import READ_ORIGINAL_MEDICINE_ENTRIES, MedicineEntries
 from app.tools.registry import ToolContext, ToolRegistry
 
@@ -272,6 +275,12 @@ def build_question_graph(deps: QuestionDeps):
             and re.search(r"\b(?:take|dose|swallow|medicine|pill)\b", state["question"], re.I)
         ):
             return "clarify_reference"
+        if (
+            deps.tools.openfda is not None
+            and deps.tools.db is not None
+            and purpose_medicine(deps.profile, state["question"], deps.recall)
+        ):
+            return "label_purpose"
         return (
             "paper_list"
             if medicine_question(state["question"]) and deps.tools.db is not None
@@ -310,6 +319,55 @@ def build_question_graph(deps: QuestionDeps):
             "cited": [e.id for e in entries.passages if intent == "purposes" or e.status == "NEW"],
             "sources": sources,
             "tool_names": [tool.name],
+        }
+
+    def label_purpose(state: QuestionState) -> dict[str, Any]:
+        """A purpose from the papers if they state one, else the FDA label as general information.
+
+        Plain code writes the whole reply (ADR-0048); the model is not involved.
+        """
+        medicine = purpose_medicine(deps.profile, state["question"], deps.recall)
+        sources = state["sources"]
+        used: list[str] = []
+        entry = None
+        try:
+            tool = READ_ORIGINAL_MEDICINE_ENTRIES
+            result = ToolRegistry([tool]).run(tool.name, {}, deps.tools)
+        except Exception:  # a malformed table: the label may still help
+            result = {"ok": False}
+        if result.get("ok"):
+            used.append(READ_ORIGINAL_MEDICINE_ENTRIES.name)
+            sources.add_tool_result(READ_ORIGINAL_MEDICINE_ENTRIES.name, result)
+            entries = MedicineEntries.model_validate(result["data"]).passages
+            entry = entry_for(entries, deps.profile, medicine)
+
+        label = None
+        label_id = None
+        if entry is None or not entry.purpose_quote:
+            try:
+                found = ToolRegistry([SEARCH_FDA_LABEL]).run(
+                    SEARCH_FDA_LABEL.name, {"medicine": medicine}, deps.tools
+                )
+            except Exception:  # never let a label problem become an error page
+                found = {"ok": False}
+            used.append(SEARCH_FDA_LABEL.name)
+            if found.get("ok"):
+                found = sources.add_tool_result(SEARCH_FDA_LABEL.name, found)
+                label = LabelText.model_validate(
+                    {k: v for k, v in found["data"].items() if k != "id"}
+                )
+                label_id = found["data"].get("id")
+
+        reply, cited = answer_purpose(medicine, entry, label, label_id, state["tier"])
+        return {
+            "outcome": "answered",
+            "route": "LABEL_PURPOSE",
+            "reply": reply,
+            "followups": [],
+            "cited": cited,
+            "sources": sources,
+            "tool_names": used,
+            "focus_medicine": medicine,
         }
 
     def after_paper_list(state: QuestionState) -> str:
@@ -528,6 +586,7 @@ def build_question_graph(deps: QuestionDeps):
         ("document_changes", document_changes),
         ("load_context", load_context),
         ("paper_list", paper_list),
+        ("label_purpose", label_purpose),
         ("clarify_reference", clarify_reference),
         ("router", router),
         ("schedule_reply", schedule_reply),
@@ -556,9 +615,15 @@ def build_question_graph(deps: QuestionDeps):
     graph.add_conditional_edges(
         "load_context",
         after_context,
-        {"paper_list": "paper_list", "clarify_reference": "clarify_reference", "router": "router"},
+        {
+            "paper_list": "paper_list",
+            "label_purpose": "label_purpose",
+            "clarify_reference": "clarify_reference",
+            "router": "router",
+        },
     )
     graph.add_edge("clarify_reference", END)
+    graph.add_edge("label_purpose", END)
     graph.add_conditional_edges("paper_list", after_paper_list, {END: END, "router": "router"})
     graph.add_conditional_edges(
         "router",

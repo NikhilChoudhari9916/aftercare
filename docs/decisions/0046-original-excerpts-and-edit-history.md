@@ -1,6 +1,7 @@
 # ADR-0046: Original excerpts and explicit confirmation edit history
 
-- **Status:** Accepted by explicit user instruction, 2026-11-21
+- **Status:** Accepted by explicit user instruction, 2026-11-21. Superseded in part by
+  ADR-0048 (the FDA label may answer a plain purpose question the papers do not).
 - **Supersedes:** Answer release in ADR-0045, synthesized answer evidence in ADR-0043,
   and treating edited fields as paper facts in ADR-0040
 

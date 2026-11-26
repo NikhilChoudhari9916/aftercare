@@ -61,3 +61,4 @@ Every important project decision is recorded here as an **Architecture Decision 
 | [0045](0045-answers-from-confirmed-papers-only.md) | Answers use only confirmed uploaded papers, with claim-support checks and context-only memory | Accepted |
 | [0046](0046-original-excerpts-and-edit-history.md) | Release original excerpts, retain edit comparisons, and withhold disputed values | Accepted |
 | [0047](0047-original-medicine-list-answers.md) | Fixed answers from complete original medicine rows and clarification for ambiguous references | Accepted |
+| [0048](0048-fda-label-for-plain-purpose-questions.md) | The FDA label answers a plain "what is it for?" question the papers do not, as general information | Accepted (review pending) |
