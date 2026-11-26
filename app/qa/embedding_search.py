@@ -1,15 +1,27 @@
 import json
+import threading
 from pathlib import Path
 
 import faiss
 
 from app.models import Chunk
-from app.qa.embeddings import Embedder
+from app.qa.embeddings import Embedder, EmbeddingUnavailable, is_ready, start_loading
 from app.qa.vectors import build_index, from_bytes, nearest, to_bytes
 from app.storage import get_index_file, save_index_file
 
 INDEX_FILE = "vectors.faiss"
 FINGERPRINT_FILE = "vectors.json"
+
+_locks_guard = threading.Lock()
+_patient_locks: dict[str, threading.Lock] = {}
+
+
+def _patient_lock(patient_id: str) -> threading.Lock:
+    """One lock per patient, so two questions (or a question and the warm-up after confirming)
+    never read and write the same index files at once. Other patients are not held up.
+    """
+    with _locks_guard:
+        return _patient_locks.setdefault(patient_id, threading.Lock())
 
 
 class EmbeddingSearch:
@@ -35,10 +47,25 @@ class EmbeddingSearch:
     def close_to(self, patient_id: str, chunks: list[Chunk], query: str) -> list[int]:
         """Positions in `chunks` that are close in meaning to the query, closest first.
 
+        Raises EmbeddingUnavailable if the model cannot run, or is still loading: the caller then
+        uses keywords for this one question instead of making the patient wait.
+        """
+        if not is_ready(self._embedder):
+            start_loading(self._embedder)
+            raise EmbeddingUnavailable("The embedding model is still loading.")
+        index = self._index_for(patient_id, chunks)
+        return nearest(index, self._embedder.embed([query])[0], self._min_similarity)
+
+    def prepare(self, patient_id: str, chunks: list[Chunk]) -> None:
+        """Build the patient's vectors now (loading the model if needed), so a question need not.
+
         Raises EmbeddingUnavailable if the model cannot run.
         """
-        index = self._load(patient_id, chunks) or self._build(patient_id, chunks)
-        return nearest(index, self._embedder.embed([query])[0], self._min_similarity)
+        self._index_for(patient_id, chunks)
+
+    def _index_for(self, patient_id: str, chunks: list[Chunk]) -> faiss.Index:
+        with _patient_lock(patient_id):
+            return self._load(patient_id, chunks) or self._build(patient_id, chunks)
 
     def _fingerprint(self, chunks: list[Chunk]) -> bytes:
         # Chunk IDs are new on every re-index, so any change to the papers invalidates the index.

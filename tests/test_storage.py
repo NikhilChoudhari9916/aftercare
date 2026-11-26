@@ -1,8 +1,16 @@
+import threading
 from uuid import uuid4
 
 import pytest
 
-from app.storage import delete_patient_files, get_pdf, patient_dir, save_pdf
+from app.storage import (
+    delete_patient_files,
+    get_index_file,
+    get_pdf,
+    patient_dir,
+    save_index_file,
+    save_pdf,
+)
 
 
 @pytest.fixture
@@ -63,3 +71,37 @@ def test_delete_patient_files_removes_only_that_patient(tmp_path, ids):
 
 def test_deleting_a_patient_with_no_files_is_not_an_error(tmp_path):
     delete_patient_files(tmp_path, str(uuid4()))
+
+
+def test_index_files_written_at_once_never_break_each_other(tmp_path, ids):
+    patient_id, _ = ids
+    errors: list[BaseException] = []
+
+    def write(number: int) -> None:
+        try:
+            save_index_file(tmp_path, patient_id, "vectors.faiss", f"write {number}".encode())
+        except BaseException as error:  # the test must see a failure on any thread
+            errors.append(error)
+
+    threads = [threading.Thread(target=write, args=(n,)) for n in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert errors == []
+    assert get_index_file(tmp_path, patient_id, "vectors.faiss").startswith(b"write ")
+    assert list(patient_dir(tmp_path, patient_id).rglob("*.tmp")) == []
+
+
+def test_a_failed_index_write_leaves_no_temp_file_behind(tmp_path, ids, monkeypatch):
+    patient_id, _ = ids
+
+    def fail(self, target):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("pathlib.Path.replace", fail)
+    with pytest.raises(OSError):
+        save_index_file(tmp_path, patient_id, "vectors.faiss", b"data")
+
+    assert list(patient_dir(tmp_path, patient_id).rglob("*.tmp")) == []

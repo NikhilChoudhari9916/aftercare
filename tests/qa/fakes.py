@@ -1,4 +1,5 @@
 import re
+import threading
 import zlib
 
 import numpy as np
@@ -33,6 +34,13 @@ class ConceptEmbedder:
                 vectors[row, len(names) + zlib.crc32(word.encode()) % WORD_DIMS] += 1.0
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
         return vectors / np.where(norms == 0, 1.0, norms)
+
+
+def wait_for_warm_up(seconds: float = 5.0) -> None:
+    """Let any background model load finish, so it cannot outlive the test that started it."""
+    for thread in threading.enumerate():
+        if thread.name == "embedding-warm-up":
+            thread.join(timeout=seconds)
 
 
 DIURETIC = {"diuretic": {"water pill", "furosemide", "lasix", "diuretic"}}

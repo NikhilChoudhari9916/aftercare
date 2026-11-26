@@ -19,6 +19,7 @@ def make_settings(**overrides: Any) -> Settings:
         "google_client_secret": "client-secret",
         "login_state_secret": "state-secret",
         "anthropic_api_key": "anthropic-test-key",
+        "embeddings_warm_up": False,  # tests must never load the real model in the background
         "ui_url": UI_URL,
         "backend_url": BACKEND_URL,
     }

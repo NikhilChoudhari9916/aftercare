@@ -65,6 +65,9 @@ class Settings(BaseModel):
     embeddings_enabled: bool = True  # falls back to keywords on its own if the model is missing
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_min_similarity: float = 0.3  # below this a passage is not a meaningful match
+    # Load the model when the backend starts and index a patient's papers when they confirm, so a
+    # question never waits for either. Off only in tests, which must not load the real model.
+    embeddings_warm_up: bool = True
 
     # Answer limits checked after every answer (CLAUDE.md section 6). The prompt asks for under
     # 40 words at about a 6th-grade level; the limits leave room for how rough `textstat` is on

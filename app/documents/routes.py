@@ -28,6 +28,7 @@ from app.models import (
     Role,
     utc_now,
 )
+from app.qa.factory import warm_patient_index
 from app.qa.index import index_patient
 from app.storage import save_pdf
 
@@ -190,7 +191,12 @@ def get_extraction(patient_id: str, _access: OwnerAccess, db: DbSession) -> Extr
 
 @router.put("/patients/{patient_id}/profile", response_model=ExtractionOut)
 def confirm_profile(
-    patient_id: str, decision: ProfileDecision, _access: OwnerAccess, db: DbSession
+    patient_id: str,
+    decision: ProfileDecision,
+    _access: OwnerAccess,
+    db: DbSession,
+    settings: AppSettings,
+    runner: Runner,
 ) -> ExtractionOut:
     """The patient decides on every item. Nothing unconfirmed is ever used (CLAUDE.md section 2)."""
     version = db.get(ProfileVersion, decision.version_id)
@@ -263,4 +269,6 @@ def confirm_profile(
     db.add(version)
     db.commit()
     index_patient(db, patient_id)  # make the confirmed papers searchable (CLAUDE.md section 15)
+    # Build the meaning vectors in the background, so the first question does not wait for them.
+    runner.submit(partial(warm_patient_index, db.get_bind(), settings, patient_id))
     return _extraction_out(db, version)
