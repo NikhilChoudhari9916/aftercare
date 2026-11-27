@@ -316,7 +316,11 @@ def build_question_graph(deps: QuestionDeps):
             "route": "PAPER_LIST",
             "reply": answer_medicine_list(entries, intent, state["tier"]),
             "followups": [],
-            "cited": [e.id for e in entries.passages if intent == "purposes" or e.status == "NEW"],
+            "cited": [
+                e.id
+                for e in entries.passages
+                if intent in ("purposes", "list") or e.status == "NEW"
+            ],
             "sources": sources,
             "tool_names": [tool.name],
         }

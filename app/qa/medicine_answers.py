@@ -7,7 +7,7 @@ from app.safety.messages import NO_CARE_TEAM_LINE
 from app.safety.rules import Tier
 from app.tools.paper_medicines import MedicineEntries
 
-MedicineQuestion = Literal["new", "purposes"]
+MedicineQuestion = Literal["new", "purposes", "list"]
 
 
 def medicine_question(question: str) -> MedicineQuestion | None:
@@ -24,6 +24,13 @@ def medicine_question(question: str) -> MedicineQuestion | None:
         text,
     ):
         return "purposes"
+    if re.fullmatch(
+        r"(?:what|which) (?:medicine|medication)s? (?:am i|do i) (?:taking|take|on)"
+        r"|what (?:is|are) (?:all )?(?:of )?(?:my|the) (?:medicine|medication|med)s?"
+        r"|(?:list|show|tell me) (?:me )?(?:all )?(?:of )?(?:my|the) (?:medicine|medication|med)s?",
+        text,
+    ):
+        return "list"
     return None
 
 
@@ -42,6 +49,11 @@ def answer_medicine_list(entries: MedicineEntries, intent: MedicineQuestion, tie
             )
         lines.append("Your uploaded medicine list explicitly marks these medicines NEW:")
         lines += [f"- **{e.name}** — marked **NEW**. [{e.id}]" for e in selected]
+    elif intent == "list":
+        lines.append("Your uploaded medicine list includes these medicines:")
+        for entry in entries.passages:
+            marked = f" — marked **{entry.status}**" if entry.status else ""
+            lines.append(f"- **{entry.name}**{marked}. [{entry.id}]")
     else:
         lines.append("Here is what I can verify in the medicine-list entries:")
         for entry in entries.passages:

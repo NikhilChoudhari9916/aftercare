@@ -27,6 +27,13 @@ def rows(db, patient_id):
         ("Which medications are new?", "new"),
         ("What is each of my medicines for?", "purposes"),
         ("What are my medicines used for?", "purposes"),
+        ("What are my medicines", "list"),
+        ("what are my medications?", "list"),
+        ("What medicines am I taking?", "list"),
+        ("List my medicines", "list"),
+        ("What are my meds?", "list"),
+        ("What are my medicines doing to me?", None),
+        ("What are the side effects of my medicines?", None),
         ("Should I start a new medicine?", None),
         ("What is metoprolol for?", None),
         ("Which medicine is new? I have chest pain", None),
@@ -204,3 +211,56 @@ def test_a_no_new_medicine_reply_keeps_the_tier_2_care_instruction():
     reply = answer_medicine_list(MedicineEntries(passages=[]), "new", Tier.CARE_TEAM)
     assert reply.startswith(NO_CARE_TEAM_LINE)
     assert "couldn't verify" in reply
+
+
+def test_what_are_my_medicines_lists_every_original_row_without_a_model(
+    client, db, confirmed_patient, llm
+):
+    before = len(llm.calls)
+    for _ in range(3):
+        llm.queue_reply(reply("TIER 3"))
+
+    response = ask(client, confirmed_patient, "What are my medicines")
+
+    body = response.json()
+    assert response.status_code == 200 and body["outcome"] == "answered"
+    assert "I can't answer that safely" not in body["answer"]
+    for name in (
+        "furosemide",
+        "metoprolol succinate ER",
+        "potassium chloride ER",
+        "lisinopril",
+        "acetaminophen",
+        "amlodipine",
+    ):
+        assert f"**{name}**" in body["answer"]
+    assert "**amlodipine** — marked **STOPPED**" in body["answer"]
+    assert "**metoprolol succinate ER** — marked **NEW**" in body["answer"]
+    assert len(body["citations"]) == 6 and all(c["kind"] == "paper" for c in body["citations"])
+    calls = llm.calls[before:]  # only the three safety readings: the model wrote none of it
+    assert len(calls) == 3 and all(c["kind"] == "complete" and not c["tools"] for c in calls)
+    log = db.exec(select(QALog)).one()
+    assert log.task == "PAPER_LIST" and log.attempts == 0
+
+
+def test_a_medicine_list_reply_keeps_the_tier_2_care_instruction():
+    from app.qa.medicine_answers import answer_medicine_list
+    from app.safety.messages import NO_CARE_TEAM_LINE
+    from app.safety.rules import Tier
+    from app.tools.paper_medicines import MedicineEntries, MedicineEntry
+
+    entry = MedicineEntry(
+        id="D2001",
+        text="lisinopril 10 mg CONTINUE",
+        page=1,
+        section="Original medicine-list entry",
+        original_document=True,
+        name="lisinopril",
+        status="CONTINUE",
+        purpose_quote=None,
+    )
+
+    reply = answer_medicine_list(MedicineEntries(passages=[entry]), "list", Tier.CARE_TEAM)
+
+    assert reply.startswith(NO_CARE_TEAM_LINE)
+    assert "**lisinopril** — marked **CONTINUE**. [D2001]" in reply
