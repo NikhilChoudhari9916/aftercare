@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from datetime import date, datetime
 from html import escape
 
 from ui.api_client import Me
@@ -384,6 +384,28 @@ def needs_close_look(quote_statuses: list[str]) -> str | None:
         return None
     noun = "item needs" if count == 1 else "items need"
     return f"{count} {noun} a close look. We could not find the exact words in your papers."
+
+
+# --- the Summary page ---
+
+
+def confirmed_note(confirmed_at: str | None) -> str:
+    """The line that says the patient checked these items, and when."""
+    try:
+        day = datetime.fromisoformat(confirmed_at).strftime("%B %d, %Y").replace(" 0", " ")
+    except (TypeError, ValueError):
+        return "You checked and confirmed these medicines."
+    return f"You checked and confirmed these medicines on {day}."
+
+
+def medicine_card_chip(status: str, as_needed: bool) -> tuple[str, str] | None:
+    """(words, kind) for a medicine card. A stopped medicine stays "Stopped", not "when needed"."""
+    kind = "AS_NEEDED" if as_needed and status != "STOPPED" else status
+    return (STATUS_WORDS[kind], kind) if kind in STATUS_WORDS else None
+
+
+def ask_about_question(name: str) -> str:
+    return f"What is {name} for?"
 
 
 # --- the Ask page ---

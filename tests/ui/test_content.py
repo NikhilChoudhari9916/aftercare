@@ -5,8 +5,10 @@ from ui.content import (
     GENERIC_SIGN_IN_ERROR,
     also_called,
     apply_edits,
+    ask_about_question,
     calendar_url,
     clock_label,
+    confirmed_note,
     describe_role,
     dev_sign_in_form,
     end_date_note,
@@ -15,6 +17,7 @@ from ui.content import (
     item_chip,
     item_headline,
     item_lines,
+    medicine_card_chip,
     medicine_title,
     quote_note,
     sign_in_url,
@@ -210,3 +213,38 @@ def test_medicine_lines_are_built_from_what_the_papers_gave():
     assert end_date_note("soon") is None
     assert visit_when("10/20/2026", "Dr. Rivera") == "10/20/2026, with Dr. Rivera"
     assert visit_when("within 7 days", None) == "within 7 days"
+
+
+# --- the Summary medicine cards ---
+
+
+def test_the_confirmed_line_names_the_day():
+    assert confirmed_note("2026-11-22T09:30:00Z") == (
+        "You checked and confirmed these medicines on November 22, 2026."
+    )
+    assert "on November 5, 2026" in confirmed_note("2026-11-05T09:30:00")  # no leading zero
+
+
+@pytest.mark.parametrize("missing", [None, "", "not a date"])
+def test_the_confirmed_line_still_reads_well_without_a_date(missing):
+    assert confirmed_note(missing) == "You checked and confirmed these medicines."
+
+
+@pytest.mark.parametrize(
+    "status,as_needed,expected",
+    [
+        ("NEW", False, ("New", "NEW")),
+        ("CHANGED", False, ("Changed", "CHANGED")),
+        ("CONTINUED", False, ("Keep taking as before", "CONTINUED")),
+        ("CONTINUED", True, ("Only when needed", "AS_NEEDED")),
+        ("STOPPED", False, ("Stopped", "STOPPED")),
+        ("STOPPED", True, ("Stopped", "STOPPED")),  # stopped wins over "when needed"
+        ("SOMETHING_ELSE", False, None),
+    ],
+)
+def test_a_medicine_card_chip_says_what_the_papers_say(status, as_needed, expected):
+    assert medicine_card_chip(status, as_needed) == expected
+
+
+def test_the_ask_button_asks_what_that_medicine_is_for():
+    assert ask_about_question("furosemide") == "What is furosemide for?"

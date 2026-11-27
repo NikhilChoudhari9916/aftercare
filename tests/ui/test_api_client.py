@@ -288,6 +288,41 @@ def test_the_summary_and_schedule_are_read_from_the_confirmed_profile():
     assert seen == ["/patients/p1/summary", "/patients/p1/schedule"]
 
 
+def test_the_summary_carries_one_card_for_each_medicine_and_the_confirmation_date():
+    body = {
+        **SUMMARY,
+        "confirmed_at": "2026-11-22T09:30:00Z",
+        "medicines": [
+            {
+                "name": "furosemide",
+                "other_names": ["LASIX"],
+                "dose": "40 mg",
+                "how_often": "once daily in the morning",
+                "status": "CHANGED",
+                "as_needed": False,
+                "note": "Previously 20 mg once daily.",
+                "end_date": None,
+                "source_page": 1,
+            }
+        ],
+    }
+    client = client_with(lambda request: httpx.Response(200, json=body))
+
+    summary = asyncio.run(client.get_summary(TOKEN, "p1"))
+
+    assert summary.confirmed_at == "2026-11-22T09:30:00Z"
+    assert [m.name for m in summary.medicines] == ["furosemide"]
+    assert summary.medicines[0].note == "Previously 20 mg once daily."
+
+
+def test_an_older_summary_without_cards_still_reads():
+    client = client_with(lambda request: httpx.Response(200, json=SUMMARY))
+
+    summary = asyncio.run(client.get_summary(TOKEN, "p1"))
+
+    assert summary.medicines == [] and summary.confirmed_at is None
+
+
 def test_nothing_confirmed_yet_is_none_not_an_error():
     client = client_with(lambda request: httpx.Response(404, json={"detail": "Not confirmed"}))
     assert asyncio.run(client.get_summary(TOKEN, "p1")) is None

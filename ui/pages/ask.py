@@ -16,6 +16,7 @@ from ui.content import (
     EMERGENCY_BANNER,
     MAX_QUESTION_CHARS,
     answer_html,
+    ask_about_question,
     citation_labels,
 )
 from ui.layout import show_not_confirmed, show_server_down, signed_in_member
@@ -72,7 +73,7 @@ def _answer_card(answer: Answer, on_followup: Callable[[str], Awaitable[None]]) 
 
 
 @ui.page("/ask")
-async def ask_page(request: Request) -> None:
+async def ask_page(request: Request, about: int | None = None) -> None:
     found = await signed_in_member(request)
     if found is None:
         return
@@ -145,6 +146,12 @@ async def ask_page(request: Request) -> None:
                 .on("keydown.enter", send_typed)
             )
             button("Ask", on_click=send_typed)
+
+        if about is not None and 0 <= about < len(summary.medicines):
+            medicine = summary.medicines[about]
+            if medicine.status != "STOPPED":
+                # Sent for the patient who tapped "Ask what it's for" on a medicine card.
+                ui.timer(0.3, lambda: send(ask_about_question(medicine.name)), once=True)
 
         ui.label("Not sure what to ask? Try one of these.").classes("ac-small")
         with ui.row().classes("w-full gap-2"):

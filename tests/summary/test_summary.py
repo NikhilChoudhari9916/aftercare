@@ -66,3 +66,56 @@ def test_a_medicine_with_missing_details_still_reads_cleanly():
     bare = medicine("testol", [], None, None, MedStatus.NEW, "q")
     summary = build_summary(confirmed(medicines=[bare]))
     assert lines(summary, "medicines") == ["Your papers list a new medicine: testol."]
+
+
+# --- one card for each medicine ---
+
+
+def test_every_medicine_has_a_card_with_the_papers_own_facts():
+    cards = {c.name: c for c in build_summary(confirmed()).medicines}
+
+    assert list(cards) == [
+        "furosemide",
+        "metoprolol succinate ER",
+        "potassium chloride ER",
+        "lisinopril",
+        "acetaminophen",
+        "amlodipine",
+    ]
+    furosemide = cards["furosemide"]
+    assert furosemide.status == "CHANGED" and furosemide.other_names == ["LASIX"]
+    assert furosemide.dose == "40 mg" and furosemide.source_page == 1
+    assert "once daily" in furosemide.how_often
+    assert furosemide.note and "20 mg" in furosemide.note  # the papers' own words on the change
+
+
+def test_a_stopped_medicine_card_says_to_ask_the_pharmacist():
+    card = next(c for c in build_summary(confirmed()).medicines if c.name == "amlodipine")
+
+    assert card.status == "STOPPED"
+    assert (
+        card.note
+        == "Your papers say to stop this medicine. Ask your pharmacist if you are not sure."
+    )
+
+
+def test_an_as_needed_medicine_card_is_marked_as_needed():
+    card = next(c for c in build_summary(confirmed()).medicines if c.name == "acetaminophen")
+
+    assert card.as_needed is True
+
+
+def test_a_continued_medicine_has_no_note_and_the_summary_keeps_its_sections():
+    summary = build_summary(confirmed())
+
+    lisinopril = next(c for c in summary.medicines if c.name == "lisinopril")
+    assert lisinopril.note is None
+    assert lines(summary, "medicines")  # the sentence list is still there for any other reader
+
+
+def test_the_summary_says_when_the_patient_confirmed():
+    from datetime import UTC, datetime
+
+    when = datetime(2026, 11, 22, 9, 30, tzinfo=UTC)
+
+    assert build_summary(confirmed(confirmed_at=when)).confirmed_at == when
