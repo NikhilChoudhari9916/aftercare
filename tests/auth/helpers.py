@@ -20,6 +20,7 @@ def make_settings(**overrides: Any) -> Settings:
         "login_state_secret": "state-secret",
         "anthropic_api_key": "anthropic-test-key",
         "embeddings_warm_up": False,  # tests must never load the real model in the background
+        "fda_label_lookup": False,  # nor reach the real FDA service
         "ui_url": UI_URL,
         "backend_url": BACKEND_URL,
     }

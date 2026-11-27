@@ -31,7 +31,7 @@ from app.memory.session import SessionMemory, get_session_memory
 from app.models import PatientAccess, QALog, Role
 from app.prompts import load_prompt
 from app.qa.answer_text import plain_text
-from app.qa.factory import build_retriever
+from app.qa.factory import build_openfda_client, build_retriever
 from app.qa.profile_text import render_profile_text
 from app.qa.prompts import load_answer_prompt
 from app.qa.retriever import Retriever
@@ -93,8 +93,10 @@ def get_question_llm() -> LLM:
     return LazyLLM()
 
 
-def get_tool_clients() -> ToolClients:
-    return ToolClients(rxnorm=None, openfda=None)  # answers use submitted papers only
+def get_tool_clients(settings: AppSettings) -> ToolClients:
+    # Only the FDA label, and only for a plain purpose question the papers do not answer
+    # (ADR-0048). The RxNorm tool stays off in Ask.
+    return ToolClients(rxnorm=None, openfda=build_openfda_client(settings))
 
 
 def get_retriever(db: DbSession, settings: AppSettings) -> Retriever:

@@ -13,6 +13,12 @@ never invented. Fixed emergency handling still runs first. Answer prompt v11 is 
 its full live benchmark remains pending under the user's maximum $2 spending limit. ADR-0046
 supersedes older source and edit-handling descriptions below.
 
+**FDA label exception (ADR-0048):** a plain "what does X do / what is X for" question about one
+confirmed medicine is answered by code. The papers win when they state a purpose; otherwise the
+start of the label's "indications and usage" is shown word for word as general information,
+tagged "From the drug label", never as the patient's own reason. Nothing else from outside the
+papers is evidence, and the model writes none of this reply.
+
 
 **Common list questions (ADR-0047):** After safety and edit checks, two explicit list intents use
 `read_original_medicine_entries` through ToolRegistry and fixed source-backed templates. The
