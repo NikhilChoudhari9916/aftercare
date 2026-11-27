@@ -5,6 +5,8 @@ show a "From your papers, page N" tag. Nothing here says whether the patient has
 and nothing tells anyone to start, stop, skip or change a medicine: it repeats the papers.
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 from app.extraction.schema import ExtractedMedication, MedStatus
@@ -28,10 +30,26 @@ class SummarySection(BaseModel):
     lines: list[SummaryLine]
 
 
+class SummaryMedicine(BaseModel):
+    """One medicine for its own card on the Summary screen. The papers' words, not advice."""
+
+    name: str
+    other_names: list[str]
+    dose: str | None
+    how_often: str  # the frequency and timing words as the papers write them
+    status: str  # NEW, CHANGED, CONTINUED, STOPPED or AS_NEEDED
+    as_needed: bool
+    note: str | None  # the papers' own words about a change, or the line for a stopped medicine
+    end_date: str | None
+    source_page: int | None
+
+
 class Summary(BaseModel):
     version: int
     intro: str
     sections: list[SummarySection]
+    medicines: list[SummaryMedicine] = []
+    confirmed_at: datetime | None = None  # when the patient confirmed this profile
 
 
 def _plain(text: str) -> str:
@@ -51,6 +69,27 @@ def _name(medicine: ExtractedMedication) -> str:
 def _how(medicine: ExtractedMedication) -> str:
     parts = [medicine.dose, medicine.frequency, medicine.timing]
     return ", ".join(part for part in parts if part)
+
+
+STOPPED_NOTE = "Your papers say to stop this medicine. Ask your pharmacist if you are not sure."
+
+
+def _medicine_card(medicine: ExtractedMedication) -> SummaryMedicine:
+    if medicine.status == MedStatus.STOPPED:
+        note = STOPPED_NOTE
+    else:
+        note = medicine.change_note if medicine.status == MedStatus.CHANGED else None
+    return SummaryMedicine(
+        name=medicine.name_as_written,
+        other_names=[name for name in medicine.other_names if name],
+        dose=medicine.dose,
+        how_often=" ".join(part for part in (medicine.frequency, medicine.timing) if part),
+        status=medicine.status.value,
+        as_needed=is_as_needed(medicine),
+        note=note,
+        end_date=medicine.end_date,
+        source_page=medicine.source_page,
+    )
 
 
 def _medicine_sentence(medicine: ExtractedMedication) -> str:
@@ -147,4 +186,10 @@ def build_summary(profile: ConfirmedProfile) -> Summary:
             for c in profile.care_team
         ],
     )
-    return Summary(version=profile.version, intro=INTRO, sections=sections)
+    return Summary(
+        version=profile.version,
+        intro=INTRO,
+        sections=sections,
+        medicines=[_medicine_card(m) for m in profile.medicines],
+        confirmed_at=profile.confirmed_at,
+    )

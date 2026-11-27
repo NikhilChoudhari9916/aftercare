@@ -89,10 +89,24 @@ class SummarySection(BaseModel):
     lines: list[SummaryLine]
 
 
+class SummaryMedicine(BaseModel):
+    name: str
+    other_names: list[str]
+    dose: str | None
+    how_often: str
+    status: str
+    as_needed: bool
+    note: str | None
+    end_date: str | None
+    source_page: int | None
+
+
 class Summary(BaseModel):
     version: int
     intro: str
     sections: list[SummarySection]
+    medicines: list[SummaryMedicine] = []
+    confirmed_at: str | None = None
 
 
 class MedicineLine(BaseModel):
